@@ -9,7 +9,7 @@ The proxy is a transparent TCP relay. mTLS is between the Java client and ADB â€
 ## Topology
 
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph Client["Client (outside OCI)"]
     APP["Spring Boot + UCP + ojdbc17\nsocksProxyHost=JUMPHOST_IP\nsocksProxyPort=1080\nsocksRemoteDNS=true\nholds ADB wallet (mTLS)"]
   end

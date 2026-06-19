@@ -30,12 +30,29 @@ Expected: `curl` attempts to resolve `<adb-private-fqdn>` on the client machine 
 
 ## Step 2 — SQLcl through the proxy (optional)
 
-Requires SQLcl 24.x+. Useful as a quick wallet validation before starting the app.
+Requires SQLcl 24.x+. Useful as a quick wallet validation before starting the app. Run these inside the SQLcl session, one at a time.
+
+Point SQLcl at the SOCKS proxy.
 
 ```sql
 SET socksproxy socks5h://JUMPHOST_IP:1080
+```
+
+Load the wallet.
+
+```sql
 SET cloudconfig wallet/wallet.zip
+```
+
+Connect through the tunnel.
+
+```sql
 CONNECT DB_USER/DB_PASSWORD@dbpoc_high
+```
+
+Run a probe query.
+
+```sql
 SELECT 1 FROM DUAL;
 ```
 
@@ -118,12 +135,16 @@ Expected response (`status` == `DOWN`, exit 1):
 
 The client tries to resolve `<adb-private-fqdn>` locally, fails (no route to the VCN private DNS zone), and the JDBC connection never reaches the proxy. This is the single most common misconfiguration.
 
-Restore and confirm recovery:
+Ctrl-C the running process, then restart it without the override. `SOCKS_REMOTE_DNS` defaults to `true` via `application.yml`.
 
 ```bash
-# Ctrl-C the running process, then:
-python manage.py run        # SOCKS_REMOTE_DNS defaults to true via application.yml
-python manage.py health     # expect UP
+python manage.py run
+```
+
+Probe again and confirm recovery. Expect `UP`.
+
+```bash
+python manage.py health
 ```
 
 ---
@@ -137,7 +158,6 @@ This section empirically determines whether the Oracle JDBC NIO SOCKS client can
 On the **Ansible control node**, set the danted auth vars in `ansible/roles/socks5/defaults/main.yml`, then re-provision:
 
 ```yaml
-# ansible/roles/socks5/defaults/main.yml (temporary — revert after experiment)
 socks_auth_method: username
 socks_debug: 2
 socks_username: socksuser
@@ -161,13 +181,17 @@ danted runs with `method: username`, `debug: 2`, and writes method-negotiation l
 
 ### 5b — Capture wire evidence on the jump host
 
-Open a capture session on the jump host **before** running the app:
+Open a capture session on the jump host **before** running the app. Use either option.
+
+Option A — capture the raw bytes with tcpdump.
 
 ```bash
-# Option A: tcpdump (raw bytes)
 sudo tcpdump -i any -X port 1080
+```
 
-# Option B: danted debug log (requires socks_debug=2)
+Option B — tail the danted debug log (requires `socks_debug=2`).
+
+```bash
 sudo tail -f /var/log/danted.log
 ```
 
@@ -235,11 +259,16 @@ socks_debug: 0
 python manage.py provision
 ```
 
-Restart the app (no credential properties required in mode B):
+Restart the app. No credential properties are required in mode B.
 
 ```bash
 python manage.py run
-python manage.py health   # expect UP
+```
+
+Probe the health endpoint. Expect `UP`.
+
+```bash
+python manage.py health
 ```
 
 Mode (B): `oracle.net.socks*` properties only, NIO on, no SOCKS-layer auth. Security is the NSG source-IP allowlist (ingress 1080 from `CLIENT_CIDR` only) plus end-to-end mTLS between the client and ADB — the relay never sees plaintext and holds no DB credentials.
@@ -250,27 +279,34 @@ Mode (B): `oracle.net.socks*` properties only, NIO on, no SOCKS-layer auth. Secu
 
 The Bastion mode uses an OCI Bastion dynamic port-forwarding session as the SOCKS5 endpoint instead of the always-on danted daemon. The JDBC driver behavior is identical; only `SOCKS_HOST` and `SOCKS_PORT` change.
 
-Start an OCI Bastion session (outside manage.py — use the OCI console or CLI):
+Start an OCI Bastion session outside manage.py, using the OCI console or CLI. Create a dynamic port-forwarding session.
 
 ```bash
-# Create a dynamic port-forwarding session via OCI CLI (example):
 oci bastion session create-dynamic-port-forwarding-session \
   --bastion-id <BASTION_OCID> \
   --display-name socks5-demo \
   --session-ttl-in-seconds 10800 \
   --key-details '{"publicKeyContent":"<ssh-pub-key>"}'
+```
 
-# Once ACTIVE, open the local tunnel:
+Once the session is ACTIVE, open the local tunnel.
+
+```bash
 ssh -N -D 127.0.0.1:1080 \
   -o StrictHostKeyChecking=no \
   -i ~/.ssh/bastion_key \
   -p 22 <session-id>@host.bastion.<region>.oci.oraclecloud.com &
 ```
 
-Then run the app pointing at the local listener:
+Run the app pointing at the local listener.
 
 ```bash
 MODE=bastion SOCKS_HOST=127.0.0.1 SOCKS_PORT=1080 python manage.py run
+```
+
+Probe the health endpoint.
+
+```bash
 python manage.py health
 ```
 
