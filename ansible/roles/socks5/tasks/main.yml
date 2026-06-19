@@ -1,0 +1,46 @@
+- name: Install danted, fail2ban, unattended-upgrades
+  apt:
+    name: [dante-server, fail2ban, unattended-upgrades]
+    state: present
+    update_cache: true
+
+- name: Create SOCKS auth user (username mode only)
+  user:
+    name: "{{ socks_username }}"
+    password: "{{ socks_password | password_hash('sha512') }}"
+    shell: /usr/sbin/nologin
+  when: socks_auth_method == 'username' and socks_password | length > 0
+
+- name: Render danted.conf
+  template:
+    src: danted.conf.j2
+    dest: /etc/danted.conf
+    mode: "0644"
+  notify: restart danted
+
+- name: Allow SSH and SOCKS from client CIDR only (ufw)
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    src: "{{ client_cidr }}"
+  loop: ["22", "{{ socks_port }}"]
+
+- name: Default-deny incoming
+  ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
+
+- name: Disable SSH password auth
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PasswordAuthentication"
+    line: "PasswordAuthentication no"
+  notify: restart sshd
+
+- name: Enable and start danted
+  systemd:
+    name: danted
+    enabled: true
+    state: started
