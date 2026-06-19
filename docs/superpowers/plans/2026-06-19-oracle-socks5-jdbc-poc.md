@@ -14,7 +14,8 @@
 
 - **JDBC stack:** `com.oracle.database.jdbc:ojdbc17:23.26.x`, `:ucp17:23.26.x`, `com.oracle.database.security:oraclepki:23.26.x` (+ `osdt_core`, `osdt_cert` for mTLS auto-login wallet). Pin the latest 23.26 patch.
 - **JDK:** 21 LTS. Do NOT move to 25/26 (known ojdbc bugs / uncertified).
-- **Spring Boot:** 4.1 (Spring Framework 7 / Jakarta EE 11 / Tomcat 11). Virtual threads on (`spring.threads.virtual.enabled=true`).
+- **Build:** Gradle (Groovy DSL) with the Gradle wrapper committed and a Java toolchain pinned to `JavaLanguageVersion.of(21)` (Gradle auto-provisions JDK 21 regardless of the local JVM). Spring Boot Gradle plugin supplies dependency management.
+- **Spring Boot:** 4.1 (Spring Framework 7 / Jakarta EE 11 / Tomcat 11). Virtual threads on (`spring.threads.virtual.enabled=true`). If a pinned version is not published on Maven Central, use the latest published patch of the same minor and record the version used.
 - **SOCKS properties are connection-scoped, NEVER JVM-wide.** Use `oracle.net.socksProxyHost/Port/RemoteDNS`. `socksRemoteDNS=true` is REQUIRED (resolve ADB FQDN at proxy). Do NOT use legacy JVM `socksProxyHost` + `oracle.jdbc.javaNetNio=false`.
 - **SOCKS daemon:** `danted` (Dante). Production/default `socksmethod: none`; `username` only for the §6.1 experiment.
 - **Auth modes:** support both `mtls` (primary) and `tls` (walletless) via `AUTH_MODE` toggle.
@@ -22,7 +23,7 @@
 - **Wallet (mtls):** must be freshly generated (G2 roots). Never reuse pre-2026 G1 wallets (distrusted after 2026-04-15). `manage.py wallet fetch` always pulls current.
 - **No ZPR** in this build. NSG source-IP allowlist is the network control.
 - **Secrets** (region, compartment OCID, client `/32` CIDR, SSH key) live in `.env` / `terraform.tfvars`, never hardcoded. Scaffold `.example` files only.
-- **gitignore:** `wallet/`, `*.tfstate*`, `*.pem`, `.env`, ssh keys, `.terraform/`, `target/`.
+- **gitignore:** `wallet/`, `*.tfstate*`, `*.pem`, `.env`, ssh keys, `.terraform/`, `app/build/`, `.gradle/`.
 - **Config precedence (manage.py):** CLI flag > `.env` > `terraform output -json`. `MODE=jumphost|bastion`.
 
 ---
@@ -42,13 +43,14 @@ oracle-socks5-jdbc-poc/                      (repo root = oracle-database-socks5
 │   ├── socks5.yml                           # playbook
 │   └── roles/socks5/{tasks,templates,defaults,handlers}/...
 └── app/
-    ├── pom.xml
+    ├── build.gradle  settings.gradle
+    ├── gradlew  gradlew.bat  gradle/wrapper/...
     └── src/main/java/com/example/socks5poc/...
         src/main/resources/application.yml
         src/test/java/com/example/socks5poc/...
 ```
 
-Each Terraform module owns one OCI concern (network / db / jumphost / bastion). The Java app splits into `App` (bootstrap), `config` (datasource wiring), `health` (DB indicator). `manage.py` is a single typer CLI file (POC — one file is appropriate).
+Each Terraform module owns one OCI concern (network / db / jumphost / bastion). The Java app splits into `App` (bootstrap), `config` (datasource wiring), `health` (DB indicator). `manage.py` is a single typer CLI file (POC — one file is appropriate). The Java build uses Gradle with the wrapper committed; the jar lands in `app/build/libs/`.
 
 ---
 
@@ -791,87 +793,71 @@ git commit -m "feat(ansible): danted socks5 role with hardening + auth toggle"
 
 ---
 
-## Task 9: Java app — pom.xml + application.yml
+## Task 9: Java app — Gradle build + application.yml
 
 **Files:**
 
-- Create: `app/pom.xml`
+- Create: `app/settings.gradle`, `app/build.gradle`
+- Create: Gradle wrapper (`app/gradlew`, `app/gradlew.bat`, `app/gradle/wrapper/gradle-wrapper.properties`, `gradle-wrapper.jar`)
 - Create: `app/src/main/resources/application.yml`
 
 **Interfaces:**
 
-- Produces: Maven project `com.example:socks5poc`, Spring Boot 4.1, Java 21, deps per Global Constraints. `application.yml` binds `app.*` config (Task 10).
+- Produces: Gradle project `com.example:socks5poc`, Spring Boot 4.1, Java toolchain 21, deps per Global Constraints. `application.yml` binds `app.*` config (Task 10).
 
-- [ ] **Step 1: Write `pom.xml`**
+- [ ] **Step 1: Write `settings.gradle`**
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-
-  <parent>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-parent</artifactId>
-    <version>4.1.0</version>
-    <relativePath/>
-  </parent>
-
-  <groupId>com.example</groupId>
-  <artifactId>socks5poc</artifactId>
-  <version>0.1.0</version>
-
-  <properties>
-    <java.version>21</java.version>
-    <oracle.jdbc.version>23.26.0.25.10</oracle.jdbc.version>
-  </properties>
-
-  <dependencies>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-web</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-actuator</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.oracle.database.jdbc</groupId>
-      <artifactId>ojdbc17</artifactId>
-      <version>${oracle.jdbc.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.oracle.database.jdbc</groupId>
-      <artifactId>ucp17</artifactId>
-      <version>${oracle.jdbc.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.oracle.database.security</groupId>
-      <artifactId>oraclepki</artifactId>
-      <version>${oracle.jdbc.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-test</artifactId>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
-
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-maven-plugin</artifactId>
-      </plugin>
-    </plugins>
-  </build>
-</project>
+```groovy
+rootProject.name = 'socks5poc'
 ```
 
-> Verify the exact latest `23.26.x` patch at build time (`oracle.jdbc.version`) and Spring Boot `4.1.x` patch against Maven Central. `osdt_core`/`osdt_cert` come transitively with `oraclepki`; add explicitly only if the auto-login wallet fails to load.
+- [ ] **Step 2: Write `build.gradle`** (Spring Boot Gradle plugin supplies dependency management; toolchain pins JDK 21)
 
-- [ ] **Step 2: Write `application.yml`**
+```groovy
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.1.0'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.example'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    oracleJdbcVersion = '23.26.0.25.10'
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation "com.oracle.database.jdbc:ojdbc17:${oracleJdbcVersion}"
+    implementation "com.oracle.database.jdbc:ucp17:${oracleJdbcVersion}"
+    implementation "com.oracle.database.security:oraclepki:${oracleJdbcVersion}"
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+```
+
+> Verify the latest published `23.26.x` patch (`oracleJdbcVersion`), the Spring Boot plugin `4.1.x` version, and the `io.spring.dependency-management` version against Maven Central / the Gradle Plugin Portal at build time. If `4.1.0` is not published, use the latest published Spring Boot `4.x` and record the version used in the report. `osdt_core`/`osdt_cert` come transitively with `oraclepki`; add explicitly only if the auto-login wallet fails to load.
+
+- [ ] **Step 3: Generate the Gradle wrapper**
+
+Run: `cd app && gradle wrapper --gradle-version 8.14` (the installed `gradle` bootstraps the wrapper; pick a wrapper version that supports Java 21 toolchains and the Spring Boot 4.1 plugin). Commit the wrapper so the build is reproducible without a system Gradle.
+
+- [ ] **Step 4: Write `application.yml`**
 
 ```yaml
 server:
@@ -907,16 +893,18 @@ app:
 
 > `socks.remote-dns` defaults true; the negative test (success criterion #4) sets `SOCKS_REMOTE_DNS=false` to prove failure.
 
-- [ ] **Step 3: Verify dependency resolution**
+- [ ] **Step 5: Verify dependency resolution + toolchain**
 
-Run: `cd app && mvn -q -o dependency:resolve 2>/dev/null || mvn -q dependency:resolve`
-Expected: BUILD SUCCESS (downloads deps). If a version is unavailable, adjust the patch version to the latest published 23.26.x / 4.1.x.
+Run: `cd app && ./gradlew dependencies --configuration runtimeClasspath -q`
+Expected: BUILD SUCCESS, resolving the ojdbc17/ucp17/oraclepki and Spring Boot deps (Gradle auto-provisions JDK 21 for the toolchain). If a version is unavailable, adjust to the latest published 23.26.x / Spring Boot 4.x and record it.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Add Gradle ignores and commit**
+
+Append to root `.gitignore` if not already present: `app/build/` and `.gradle/`. Then:
 
 ```bash
-git add app/pom.xml app/src/main/resources/application.yml
-git commit -m "feat(app): maven pom and application.yml"
+git add app/settings.gradle app/build.gradle app/gradlew app/gradlew.bat app/gradle app/src/main/resources/application.yml .gitignore
+git commit -m "feat(app): gradle build, wrapper, and application.yml"
 ```
 
 ---
@@ -1057,7 +1045,7 @@ public class App {
 
 - [ ] **Step 4: Compile**
 
-Run: `cd app && mvn -q compile`
+Run: `cd app && ./gradlew compileJava -q`
 Expected: BUILD SUCCESS.
 
 - [ ] **Step 5: Commit**
@@ -1143,8 +1131,8 @@ class DatabaseHealthIndicatorTest {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd app && mvn -q -Dtest=DatabaseHealthIndicatorTest test`
-Expected: FAIL — `DatabaseHealthIndicator` does not exist.
+Run: `cd app && ./gradlew test --tests DatabaseHealthIndicatorTest`
+Expected: FAIL — `DatabaseHealthIndicator` does not exist (compilation error).
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -1207,7 +1195,7 @@ public class DatabaseHealthIndicator implements HealthIndicator {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd app && mvn -q -Dtest=DatabaseHealthIndicatorTest test`
+Run: `cd app && ./gradlew test --tests DatabaseHealthIndicatorTest`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Wire readiness group** — add to `application.yml`
@@ -1362,7 +1350,7 @@ def _sh(cmd, **kw):
 @app.command()
 def setup():
     """Check prereqs and seed .env."""
-    for tool in ["oci", "terraform", "ansible", "java", "mvn", "ssh"]:
+    for tool in ["oci", "terraform", "ansible", "java", "gradle", "ssh"]:
         ok = subprocess.run(["which", tool], capture_output=True).returncode == 0
         typer.echo(f"  {'OK ' if ok else 'MISSING'} {tool}")
     if not Path(".env").exists():
@@ -1428,14 +1416,14 @@ def socks(action: str, mode: str = "jumphost", port: int = 1080):
 
 @app.command()
 def build():
-    _sh(["mvn", "-q", "package", "-DskipTests"], cwd="app")
+    _sh(["./gradlew", "bootJar", "-q", "-x", "test"], cwd="app")
 
 
 @app.command()
 def run():
     cfg = load_config({})
     env = {**os.environ, **cfg}
-    jar = next(Path("app/target").glob("socks5poc-*.jar"))
+    jar = next(Path("app/build/libs").glob("socks5poc-*.jar"))
     _sh(["java", "-jar", str(jar)], env=env)
 
 
