@@ -2,12 +2,6 @@
 
 Proves that a Java client (Spring Boot + UCP + ojdbc17) can reach a **private Oracle Autonomous Database (ADB-S, mTLS)** through a **SOCKS5 proxy**, with the proxy acting as a dumb relay that never holds a wallet or decrypts traffic.
 
-**End-to-end path (primary):**
-
-```
-Java client (UCP/ojdbc17, holds wallet) ──SOCKS5──▶ jump host danted:1080 (public subnet) ──▶ private ADB-S:1522 (mTLS end-to-end)
-```
-
 The proxy is a transparent TCP relay. mTLS is between the Java client and ADB — the jump host sees only ciphertext and the destination address.
 
 ---
