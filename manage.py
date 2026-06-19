@@ -286,6 +286,7 @@ def setup():
     _write_tfvars({
         "oci_profile": profile,
         "region": region,
+        "tenancy_ocid": sdk_config["tenancy"],
         "compartment_ocid": compartment_ocid,
         "client_cidr": client_cidr,
         "ssh_public_key": ssh_public_key,

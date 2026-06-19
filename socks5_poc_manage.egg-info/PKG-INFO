@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: socks5-poc-manage
+Version: 0.1.0
+Requires-Python: >=3.11
+License-File: LICENSE
+Requires-Dist: typer>=0.12
+Requires-Dist: python-dotenv>=1.0
+Requires-Dist: oci>=2.120
+Requires-Dist: InquirerPy>=0.3
+Requires-Dist: rich>=13.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Dynamic: license-file

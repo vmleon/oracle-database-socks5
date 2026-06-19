@@ -1,14 +1,22 @@
 data "oci_identity_availability_domains" "ads" {
-  compartment_id = var.compartment_ocid
+  compartment_id = var.tenancy_ocid
 }
 
 data "oci_core_images" "ubuntu" {
   compartment_id           = var.compartment_ocid
   operating_system         = "Canonical Ubuntu"
   operating_system_version = "22.04"
-  shape                    = var.jumphost_shape
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"
+
+  # Match the standard x86_64 platform image, excluding aarch64/Minimal/GPU
+  # variants. Filtering by shape can return an empty list in regions where the
+  # shape is unavailable, so select by name and let the instance pick the shape.
+  filter {
+    name   = "display_name"
+    values = ["^Canonical-Ubuntu-22\\.04-[0-9]{4}\\."]
+    regex  = true
+  }
 }
 
 resource "oci_core_instance" "jumphost" {

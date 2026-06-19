@@ -200,6 +200,10 @@ chmod 600 wallet/*
 
 Wallets minted before 28 Jan 2026 carry DigiCert G1 roots. G1 roots are not trusted after 15 Apr 2026. If you see `PKIX path building failed`, `certificate unknown`, or similar TLS errors, your wallet is stale. Fix: run `python manage.py wallet fetch` to pull a current (G2) wallet.
 
+### Jump host shape unavailable (`Out of host capacity` / image not found)
+
+The jump host defaults to `VM.Standard.E5.Flex`. If `tf apply` reports `Out of host capacity` or the image lookup is empty, that shape is not available in your region or trial tenancy. Set a different shape in `infra/terraform/terraform.tfvars`, for example `jumphost_shape = "VM.Standard.E4.Flex"` or `jumphost_shape = "VM.Standard.A1.Flex"` (Always Free, Ampere), then re-run `python manage.py tf apply`. Availability domains are listed against the tenancy, and the Ubuntu image is selected by name (not by shape), so neither depends on the chosen shape.
+
 ### danted directive names across versions
 
 Older `danted` packages use `method:` while newer ones use `socksmethod:` (within a `socks pass {}` block). Check the installed version with `danted -v` and match the directive to that version's `danted.conf` man page. The Ansible role renders config for the installed version.
