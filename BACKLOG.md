@@ -64,3 +64,15 @@ Questions that decide the architecture before building for a customer:
 - Is the requirement **literal SOCKS5** or **"controlled chokepoint, no VPN"**? This decides SOCKS5 (this PoC) vs CMAN-TDM (P6).
 - Does the customer's SOCKS proxy **require RFC-1929 auth**? This is the §6.1 question — if a proxy they don't control mandates SOCKS-layer auth and can't be fronted by SSH or a local relay, the last-resort path is `oracle.jdbc.javaNetNio=false` + JVM `java.net.socks.*` (blocking IO, performance cost).
 - `auth_mode`: `mtls` (hardest path, wallet) vs `tls`/walletless (Oracle-recommended for a private-endpoint/ACL'd ADB). Always fetch a fresh G2 wallet for mtls.
+
+---
+
+## Gotchas
+
+Non-obvious things that, if changed, reintroduce bugs. Each is a present-tense property of the setup, with the reason it matters.
+
+- **Every Terraform module declares `required_providers { oci = { source = "oracle/oci" } }`** (in each module's `variables.tf`). A child module that uses `oci_*` resources without this declaration falls back to the `hashicorp/oci` namespace — a _separate, unconfigured_ provider that never receives the root `provider "oci"` auth block. The symptom is data sources returning `null` (e.g. `availability_domains is null`) while `terraform validate` still passes, because `validate` does not resolve per-module provider sources the way `init` does. Keep the declaration in every module.
+- **The provider authenticates with explicit API-key fields** (`tenancy_ocid` / `user_ocid` / `fingerprint` / `private_key_path`), not `config_file_profile`. Explicit fields remove any ambiguity about which `~/.oci/config` profile and identity Terraform uses, so reads run as the same identity the OCI CLI uses.
+- **`manage.py tf` runs Terraform with `GODEBUG=netdns=cgo`** so Go uses the macOS system resolver. Terraform's built-in resolver only reads `/etc/resolv.conf` and ignores scoped/VPN DNS, which can make `*.oraclecloud.com` fail to resolve (`dial tcp: lookup … no such host`) even though the OCI CLI resolves it.
+- **Availability domains are listed against the tenancy OCID, and the OS image is selected by display-name regex, not by shape.** Listing ADs against a sub-compartment, or filtering images by a shape the region does not offer, returns an empty/`null` list.
+- **When mirroring a known-good reference project, diff the whole module scaffolding** (including `versions.tf` / `required_providers`), not just point patterns — the provider-source declaration is invisible until `init`/`apply` against a real tenancy.

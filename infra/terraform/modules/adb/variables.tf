@@ -1,3 +1,11 @@
+terraform {
+  required_providers {
+    oci = {
+      source = "oracle/oci"
+    }
+  }
+}
+
 variable "compartment_ocid" { type = string }
 variable "db_name" { type = string }
 variable "db_version" { type = string }
