@@ -16,3 +16,6 @@ app/build/
 .gradle/
 __pycache__/
 .venv/
+
+# terraform-generated artifacts
+infra/terraform/generated/

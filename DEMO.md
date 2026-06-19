@@ -2,7 +2,7 @@
 
 This document is the demo script. There is no `manage.py demo` command; execute these steps in order.
 
-Prerequisites: infrastructure provisioned (`python manage.py tf apply`), sockd installed and running (`python manage.py provision`), wallet fetched (`python manage.py wallet fetch`), app built (`python manage.py build`), `.env` populated.
+Prerequisites: `python manage.py tf apply` complete (this provisions the infrastructure, self-provisions `sockd` on the jump host via cloud-init, and generates `./wallet`), the jump host's cloud-init finished (`python manage.py socks status` shows reachable), app built (`python manage.py build`), `.env` populated.
 
 ---
 
@@ -155,29 +155,20 @@ This section empirically determines whether the Oracle JDBC NIO SOCKS client can
 
 ### 5a — Enable sockd authentication
 
-On the **Ansible control node**, set the sockd auth vars in `ansible/roles/socks5/defaults/main.yml`, then re-provision:
+The jump host self-provisioned `sockd` with `socks_auth_method=none` at boot. To flip it to `username` for the experiment, SSH into the host (the role and `ansible-core` are already there under `/root/ansible`) and re-run it locally with the experiment vars:
 
-```yaml
-socks_auth_method: username
-socks_debug: 2
-socks_username: socksuser
-socks_password: "<test-password>"
+```bash
+ssh -i <your-ssh-key> opc@<JUMPHOST_IP>
 ```
 
 ```bash
-python manage.py provision
-```
-
-To flip the vars without editing the defaults file, invoke the role directly with extra vars (this bypasses `manage.py provision`, which only forwards `adb_fqdn` and `client_cidr`):
-
-```bash
-cd ansible && ansible-playbook -i inventory.ini socks5.yml \
+sudo ansible-playbook -i 'localhost,' -c local /root/ansible/socks5.yml \
   -e socks_auth_method=username -e socks_debug=2 \
   -e socks_username=socksuser -e "socks_password=<test-password>" \
-  -e adb_fqdn=<adb-private-fqdn> -e client_cidr=CLIENT_CIDR
+  -e adb_fqdn=<adb-private-fqdn> -e client_cidr=<your-cidr>
 ```
 
-sockd runs with `method: username`, `debug: 2`, and writes method-negotiation lines to `/var/log/sockd.log`.
+`sockd` now runs with `method: username`, `debug: 2`, and logs method negotiation to `/var/log/sockd.log`.
 
 ### 5b — Capture wire evidence on the jump host
 
@@ -240,23 +231,12 @@ Record the empirical finding here after running the experiment:
 
 ### 5e — Revert sockd to no-auth and confirm mode (B)
 
-Restore the production configuration:
+Restore the production configuration on the jump host (over the same SSH session) by re-running the role with the defaults:
 
 ```bash
-python manage.py provision \
-  -e socks_auth_method=none \
-  -e socks_debug=0
-```
-
-Or restore `ansible/roles/socks5/defaults/main.yml`:
-
-```yaml
-socks_auth_method: none
-socks_debug: 0
-```
-
-```bash
-python manage.py provision
+sudo ansible-playbook -i 'localhost,' -c local /root/ansible/socks5.yml \
+  -e socks_auth_method=none -e socks_debug=0 \
+  -e adb_fqdn=<adb-private-fqdn> -e client_cidr=<your-cidr>
 ```
 
 Restart the app. No credential properties are required in mode B.
@@ -331,6 +311,6 @@ Expected: identical `UP` response with `"mode": "bastion"` and `"socks": "127.0.
 | 2 SQLcl               | `CONNECT user/pwd@dbpoc_high`                                  | `1` returned                    |
 | 3 Happy path          | `manage.py run` + `manage.py health`                           | `UP` with details               |
 | 4 Negative test       | `SOCKS_REMOTE_DNS=false manage.py run` + health                | `DOWN`                          |
-| 5a–d Auth experiment  | provision + tcpdump + brave path                               | `05 01 00` / rejection / `DOWN` |
-| 5e Revert             | provision (`socks_auth_method=none`) + health                  | `UP` mode (B)                   |
+| 5a–d Auth experiment  | SSH in, re-run role (`socks_auth_method=username`) + tcpdump   | `05 01 00` / rejection / `DOWN` |
+| 5e Revert             | SSH in, re-run role (`socks_auth_method=none`) + health        | `UP` mode (B)                   |
 | 6 Bastion             | `MODE=bastion SOCKS_HOST=127.0.0.1 manage.py run` + health     | `UP` `"mode":"bastion"`         |

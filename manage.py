@@ -36,13 +36,6 @@ def _read_tf_output() -> dict:
         return {}
 
 
-def _tf_value(tf, key):
-    if key not in tf:
-        typer.echo(f"missing terraform output '{key}' — run 'manage.py tf apply' first")
-        raise typer.Exit(1)
-    return tf[key]["value"]
-
-
 def load_config(cli_overrides: dict) -> dict:
     cfg = {}
     tf = _read_tf_output()
@@ -316,43 +309,6 @@ def tf(action: str):
     if action in ("apply", "destroy"):
         args.append("-auto-approve")
     _sh(args, cwd=TF_DIR, env=env)
-
-
-@app.command()
-def provision():
-    """Render inventory from TF output and run the ansible socks5 role."""
-    cfg = load_config({})
-    tf = _read_tf_output()
-    ip = _tf_value(tf, "jumphost_public_ip")
-    fqdn = _tf_value(tf, "adb_private_endpoint")
-    key = cfg.get("SSH_PRIVATE_KEY_PATH", "~/.ssh/id_rsa")
-    inv = Path("ansible/inventory.ini")
-    inv.write_text(
-        f"[jumphost]\n{ip} ansible_user=opc ansible_ssh_private_key_file={key}\n"
-    )
-    _sh(["ansible-playbook", "-i", "inventory.ini", "socks5.yml",
-         "-e", f"adb_fqdn={fqdn}", "-e", f"client_cidr={cfg.get('CLIENT_CIDR', '0.0.0.0/0')}"],
-        cwd="ansible")
-
-
-@app.command()
-def wallet(action: str = "fetch"):
-    """Download + unzip the ADB wallet (fresh G2) into wallet/."""
-    cfg = load_config({})
-    tf = _read_tf_output()
-    adb_id = _tf_value(tf, "adb_id")
-    Path("wallet").mkdir(exist_ok=True)
-    pwd = cfg.get("DB_PASSWORD")
-    if not pwd:
-        typer.echo("DB_PASSWORD not set — run 'manage.py setup'")
-        raise typer.Exit(1)
-    _sh(["oci", "db", "autonomous-database", "generate-wallet",
-         "--profile", cfg.get("OCI_PROFILE", "DEFAULT"),
-         "--autonomous-database-id", adb_id,
-         "--password", pwd, "--file", "wallet/wallet.zip"])
-    _sh(["unzip", "-o", "wallet/wallet.zip", "-d", "wallet"])
-    for p in Path("wallet").glob("*"):
-        p.chmod(0o600)
 
 
 @app.command()

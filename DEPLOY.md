@@ -10,14 +10,13 @@ Ordered, copy-pasteable steps to go from zero to a running health endpoint.
 | ------------------------- | --------------- | ------------------------------------------------------------------------------- |
 | OCI tenancy + compartment | —               | Policies for `autonomous-database`, `instance-family`, `virtual-network-family` |
 | OCI CLI                   | current         | `oci setup config` complete                                                     |
-| Terraform                 | ≥ 1.6           | Latest `hashicorp/oci` provider                                                 |
-| Ansible                   | current         | `ansible-playbook` on PATH                                                      |
+| Terraform                 | ≥ 1.6           | `oracle/oci` provider (pulled automatically)                                    |
 | Python                    | 3.11+           | Create `.venv` and `pip install -e .` before any `manage.py` call (see step 3)  |
 | JDK                       | 21 LTS          | `JAVA_HOME` pointing at JDK 21                                                  |
-| OpenSSH                   | —               | `ssh`, `ssh-keygen` on PATH                                                     |
+| OpenSSH                   | —               | `ssh`, `ssh-keygen` on PATH (key pair + optional jump host troubleshooting)     |
 | curl                      | —               | Used by `manage.py health`                                                      |
 
-> The Java build uses the committed Gradle wrapper (`./gradlew`) — no system Gradle or Maven installation is needed.
+> The Java build uses the committed Gradle wrapper (`./gradlew`) — no system Gradle or Maven installation is needed. Ansible is **not** required locally: the jump host installs it and runs the `socks5` role itself via cloud-init. `unzip` is used locally to expand the generated wallet.
 
 ---
 
@@ -69,41 +68,26 @@ python manage.py setup
 
 ---
 
-## 4. Provision infrastructure
+## 4. Provision everything
 
-Provision the VCN, public subnet (jump host), private subnet (ADB-S private endpoint), NSGs, and the ADB instance. This runs `terraform init` automatically and reads `terraform.tfvars` written by `setup`. The OCI Bastion resource is created here only if you chose it during `setup`. The jump host public IP and ADB private FQDN are written to Terraform state and read automatically by subsequent `manage.py` commands.
+This single step does all of the OCI work. It runs `terraform init` automatically and reads `terraform.tfvars` written by `setup`:
+
+- Creates the VCN, public subnet (jump host), private subnet (ADB-S private endpoint), NSGs, and the ADB instance (plus the OCI Bastion, only if you enabled it in `setup`).
+- Packages the Ansible `socks5` role, uploads it to an Object Storage bucket, and issues a time-limited pre-authenticated request (PAR) URL.
+- The jump host **self-provisions on first boot via cloud-init**: it installs Ansible, downloads the role through the PAR, and runs it locally — installing and hardening the Dante SOCKS5 daemon (`sockd`), restricting ingress to `CLIENT_CIDR` with firewalld, and allowing egress only to the ADB endpoint on 1522. No SSH push is involved.
+- For `auth_mode = mtls`, it generates the ADB wallet and unzips it into `./wallet` on this machine (the client that runs the app). The jump host never receives the wallet — it stays a dumb relay. The wallet is freshly generated, so it always carries current (G2) DigiCert roots.
 
 ```bash
 python manage.py tf apply
 ```
 
----
-
-## 5. Configure the jump host (SOCKS5 daemon)
-
-This reads the jump host public IP and ADB private FQDN from Terraform output, renders `ansible/inventory.ini`, then runs the Ansible `socks5` role. The role installs and hardens the Dante SOCKS5 daemon (the `sockd` service, from EPEL), restricts ingress to `CLIENT_CIDR` with firewalld, and restricts egress to the ADB private endpoint on port 1522.
-
-```bash
-python manage.py provision
-```
+`terraform apply` returns once the compute instance is created, but the jump host's cloud-init keeps running for ~1–2 minutes after that (installing packages, running Ansible). The next step waits for it.
 
 ---
 
-## 6. Fetch the ADB wallet
+## 5. Verify connectivity
 
-Download a fresh wallet ZIP from OCI, unzip it into `wallet/`, and set all files to `chmod 600`.
-
-```bash
-python manage.py wallet fetch
-```
-
-> **Wallet freshness requirement:** wallets carry DigiCert root certificates. Wallets minted before 28 Jan 2026 carry G1 roots which are not trusted after 15 Apr 2026; current wallets use G2 roots. Always fetch a current wallet — never reuse stale wallet material. See the troubleshooting section if you see certificate errors.
-
----
-
-## 7. Verify connectivity
-
-Check that the jump host is reachable on port 1080. Expected output: `<IP>:1080 reachable`.
+Check that the jump host is reachable on port 1080. Until cloud-init finishes provisioning `sockd`, this shows `DOWN`; give it a minute or two after `tf apply`, then expect `<IP>:1080 reachable`.
 
 ```bash
 python manage.py socks status
@@ -115,9 +99,15 @@ Independently verify the SOCKS relay carries TCP to the ADB port. A successful T
 curl -v --socks5-hostname <JUMPHOST_IP>:1080 telnet://<ADB_PRIVATE_FQDN>:1522
 ```
 
+To watch cloud-init provisioning or troubleshoot the daemon, SSH in (port 22 is open to your `CLIENT_CIDR`):
+
+```bash
+ssh -i <your-ssh-key> opc@<JUMPHOST_IP> 'sudo tail -n 80 /var/log/socks5-bootstrap.log'
+```
+
 ---
 
-## 8. Build and run the application
+## 6. Build and run the application
 
 Build the application JAR. This runs `./gradlew bootJar` inside `app/`; the output JAR lands in `app/build/libs/`.
 
@@ -139,7 +129,7 @@ python manage.py health
 
 ---
 
-## 9. Optional: Bastion demo path
+## 7. Optional: Bastion demo path
 
 If you chose to create the Bastion during `setup` (so `enable_bastion = true` in `terraform.tfvars`), you can route JDBC through OCI Bastion instead of the jump host. The Bastion path is ephemeral (3-hour hard session TTL) and is intended for demo/ad-hoc access only.
 
@@ -163,7 +153,7 @@ Then run `python manage.py run` and `python manage.py health` as usual. The JDBC
 
 ---
 
-## 10. Teardown
+## 8. Teardown
 
 Remove `wallet/` contents and run `terraform destroy` to tear down all OCI resources.
 
@@ -190,7 +180,7 @@ The ADB NSG must allow ingress TCP 1522 from the jump host NSG or the jump host 
 
 ### Wallet file permissions
 
-All files under `wallet/` must be `chmod 600` and owned by the user running the JVM. `manage.py wallet fetch` sets this automatically. If you unzip manually, run:
+All files under `wallet/` must be `chmod 600` and owned by the user running the JVM. `tf apply` sets this automatically when it unzips the generated wallet. If you unzip manually, run:
 
 ```bash
 chmod 600 wallet/*
@@ -198,7 +188,7 @@ chmod 600 wallet/*
 
 ### DigiCert G1 vs G2 wallet roots
 
-Wallets minted before 28 Jan 2026 carry DigiCert G1 roots. G1 roots are not trusted after 15 Apr 2026. If you see `PKIX path building failed`, `certificate unknown`, or similar TLS errors, your wallet is stale. Fix: run `python manage.py wallet fetch` to pull a current (G2) wallet.
+Wallets minted before 28 Jan 2026 carry DigiCert G1 roots. G1 roots are not trusted after 15 Apr 2026. If you see `PKIX path building failed`, `certificate unknown`, or similar TLS errors, your wallet is stale. Fix: `python manage.py clean` then `python manage.py tf apply` to regenerate a current (G2) wallet into `./wallet`.
 
 ### Jump host shape unavailable (`Out of host capacity` / image not found)
 

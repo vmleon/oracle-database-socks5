@@ -5,5 +5,14 @@ terraform {
       source  = "oracle/oci"
       version = ">= 6.0.0"
     }
+    archive = {
+      source = "hashicorp/archive"
+    }
+    local = {
+      source = "hashicorp/local"
+    }
+    time = {
+      source = "hashicorp/time"
+    }
   }
 }

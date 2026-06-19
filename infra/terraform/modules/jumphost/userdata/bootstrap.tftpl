@@ -1,0 +1,33 @@
+#!/bin/bash
+# Jump host self-provisioning. Runs once at first boot via cloud-init:
+# install Ansible, download the socks5 role from Object Storage (PAR), and run
+# it locally against this host. No inbound SSH is needed to provision.
+set -euo pipefail
+exec > /var/log/socks5-bootstrap.log 2>&1
+
+echo "[bootstrap] waiting for DNS..."
+for _ in $(seq 1 60); do
+  getent hosts "objectstorage.${region}.oraclecloud.com" >/dev/null 2>&1 && break
+  sleep 5
+done
+
+echo "[bootstrap] installing ansible..."
+dnf install -y oracle-epel-release-el9
+dnf install -y ansible-core unzip
+ansible-galaxy collection install ansible.posix
+
+echo "[bootstrap] downloading socks5 role..."
+curl -4 --fail -sS "${ansible_par_url}" -o /root/ansible.zip
+mkdir -p /root/ansible
+unzip -o /root/ansible.zip -d /root/ansible
+
+echo "[bootstrap] running socks5 role..."
+ansible-playbook -i 'localhost,' -c local /root/ansible/socks5.yml \
+  -e "adb_fqdn=${adb_fqdn}" \
+  -e "client_cidr=${client_cidr}" \
+  -e "socks_port=${socks_port}" \
+  -e "socks_auth_method=${socks_auth_method}" \
+  -e "socks_debug=${socks_debug}"
+
+touch /var/lib/socks5-bootstrap.ok
+echo "[bootstrap] done."

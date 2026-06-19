@@ -41,7 +41,7 @@ flowchart TB
 | **Proxy trust model**              | Dumb relay — jump host holds no wallet, sees only ciphertext + destination | Minimizes what the chokepoint can access; mTLS stays client↔ADB.                                                                                                                                                                            |
 | **App**                            | Spring Boot 4.1, Java 21, virtual threads on                               | Current GA (Spring Framework 7 / Jakarta EE 11 / Tomcat 11). UCP integrates wallet + connection validation.                                                                                                                                 |
 | **Network security**               | NSG source-IP allowlist                                                    | ZPR (Zero Trust Packet Routing) is intentionally out of scope for this PoC; NSG source-IP is the network control.                                                                                                                           |
-| **Config mgmt**                    | Ansible role for the jump host                                             | Repeatable SOCKS daemon install + hardening against a real compute host.                                                                                                                                                                    |
+| **Config mgmt**                    | Ansible `socks5` role, run by the jump host itself via cloud-init          | Role is published to Object Storage and pulled through a PAR at first boot; the host provisions itself — no SSH push, no inbound access needed to configure it.                                                                             |
 
 ---
 
@@ -60,9 +60,11 @@ flowchart TB
 
 ## Quickstart
 
-Deployment is fully scripted by `manage.py`. The end-to-end flow is: configure (`setup`) → provision infrastructure (`tf apply`) → install the SOCKS5 daemon (`provision`) → fetch the wallet (`wallet fetch`) → build and run the app (`build`, `run`) → verify (`health`).
+Deployment is fully scripted by `manage.py`. The end-to-end flow is: configure (`setup`) → provision everything (`tf apply`) → build and run the app (`build`, `run`) → verify (`health`).
 
 `setup` is interactive: it reads your `~/.oci/config`, lets you pick the OCI profile, region, and compartment from lists, auto-detects your public IP for the jump host allowlist, picks your SSH key, and generates the database password — writing `.env` and `terraform.tfvars` for you, with nothing to edit by hand.
+
+`tf apply` does all the OCI work in one step: it creates the network, ADB, and jump host; publishes the Ansible `socks5` role to Object Storage; and the jump host **self-provisions via cloud-init** (downloads the role through a pre-authenticated URL and runs it locally — no SSH push). In `mtls` mode it also generates the ADB wallet straight into `./wallet` on the client. The jump host never receives the wallet.
 
 See **[DEPLOY.md](DEPLOY.md)** for the full, copy-pasteable steps, and **[DEMO.md](DEMO.md)** for the validation walkthrough.
 
@@ -93,7 +95,7 @@ The ADB private FQDN is not resolvable outside the VCN. Without this property, t
 OCI Bastion sessions have a hard 3-hour TTL (maximum, not raisable). Any reconnect loop that re-creates sessions before expiry has a gap window and is not suitable for a production data plane.
 
 **❌ Reusing a pre-2026 wallet (DigiCert G1)**
-Wallets generated before 28 Jan 2026 carry DigiCert G1 roots, which stop working after 15 Apr 2026. Current wallets use G2. `manage.py wallet fetch` always pulls a fresh wallet — never reuse stale wallet material.
+Wallets generated before 28 Jan 2026 carry DigiCert G1 roots, which stop working after 15 Apr 2026. Current wallets use G2. `tf apply` generates a fresh wallet into `./wallet` every time — never reuse stale wallet material.
 
 ---
 

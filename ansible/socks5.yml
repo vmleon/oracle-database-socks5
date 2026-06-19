@@ -1,4 +1,4 @@
-- hosts: jumphost
+- hosts: all
   become: true
   roles:
     - socks5

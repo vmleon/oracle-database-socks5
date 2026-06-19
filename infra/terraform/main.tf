@@ -19,10 +19,15 @@ module "jumphost" {
   source           = "./modules/jumphost"
   compartment_ocid = var.compartment_ocid
   tenancy_ocid     = var.tenancy_ocid
+  region           = var.region
   public_subnet_id = module.network.public_subnet_id
   jumphost_nsg_id  = module.network.jumphost_nsg_id
   ssh_public_key   = var.ssh_public_key
   jumphost_shape   = var.jumphost_shape
+
+  ansible_par_url = oci_objectstorage_preauthrequest.ansible.full_path
+  adb_fqdn        = module.adb.private_endpoint
+  client_cidr     = var.client_cidr
 }
 
 module "bastion" {

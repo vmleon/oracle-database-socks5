@@ -44,5 +44,14 @@ resource "oci_core_instance" "jumphost" {
 
   metadata = {
     ssh_authorized_keys = var.ssh_public_key
+    user_data = base64encode(templatefile("${path.module}/userdata/bootstrap.tftpl", {
+      region            = var.region
+      ansible_par_url   = var.ansible_par_url
+      adb_fqdn          = var.adb_fqdn
+      client_cidr       = var.client_cidr
+      socks_port        = var.socks_port
+      socks_auth_method = var.socks_auth_method
+      socks_debug       = var.socks_debug
+    }))
   }
 }
