@@ -81,7 +81,7 @@ python manage.py tf apply
 
 ## 5. Configure the jump host (SOCKS5 daemon)
 
-This reads the jump host public IP and ADB private FQDN from Terraform output, renders `ansible/inventory.ini`, then runs the Ansible `socks5` role. The role installs and hardens the `danted` SOCKS5 daemon, restricts ingress to `CLIENT_CIDR`, and restricts egress to the ADB private endpoint on port 1522.
+This reads the jump host public IP and ADB private FQDN from Terraform output, renders `ansible/inventory.ini`, then runs the Ansible `socks5` role. The role installs and hardens the Dante SOCKS5 daemon (the `sockd` service, from EPEL), restricts ingress to `CLIENT_CIDR` with firewalld, and restricts egress to the ADB private endpoint on port 1522.
 
 ```bash
 python manage.py provision
@@ -202,11 +202,11 @@ Wallets minted before 28 Jan 2026 carry DigiCert G1 roots. G1 roots are not trus
 
 ### Jump host shape unavailable (`Out of host capacity` / image not found)
 
-The jump host defaults to `VM.Standard.E5.Flex`. If `tf apply` reports `Out of host capacity` or the image lookup is empty, that shape is not available in your region or trial tenancy. Set a different shape in `infra/terraform/terraform.tfvars`, for example `jumphost_shape = "VM.Standard.E4.Flex"` or `jumphost_shape = "VM.Standard.A1.Flex"` (Always Free, Ampere), then re-run `python manage.py tf apply`. Availability domains are listed against the tenancy, and the Ubuntu image is selected by name (not by shape), so neither depends on the chosen shape.
+The jump host defaults to `VM.Standard.E5.Flex`. If `tf apply` reports `Out of host capacity` or the image lookup is empty, that shape is not available in your region or trial tenancy. Set a different shape in `infra/terraform/terraform.tfvars`, for example `jumphost_shape = "VM.Standard.E4.Flex"` or `jumphost_shape = "VM.Standard.A1.Flex"` (Always Free, Ampere), then re-run `python manage.py tf apply`. Availability domains are listed against the tenancy, and the Oracle Linux 9 image is selected by name (not by shape), so neither depends on the chosen shape.
 
-### danted directive names across versions
+### Dante directive names across versions
 
-Older `danted` packages use `method:` while newer ones use `socksmethod:` (within a `socks pass {}` block). Check the installed version with `danted -v` and match the directive to that version's `danted.conf` man page. The Ansible role renders config for the installed version.
+Older Dante builds use `method:` while newer ones use `socksmethod:` (within a `socks pass {}` block). On Oracle Linux the daemon is `sockd`, its config is `/etc/sockd.conf`, and its logs go to `journalctl -u sockd` (or `/var/log/sockd.log` when `socks_debug` is on). Check the installed version with `rpm -q dante-server` and match the directives to that version's `man sockd.conf`. The Ansible role renders config for the EPEL build.
 
 ### `tnsping` does not traverse SOCKS
 

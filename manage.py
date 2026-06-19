@@ -321,7 +321,7 @@ def provision():
     key = cfg.get("SSH_PRIVATE_KEY_PATH", "~/.ssh/id_rsa")
     inv = Path("ansible/inventory.ini")
     inv.write_text(
-        f"[jumphost]\n{ip} ansible_user=ubuntu ansible_ssh_private_key_file={key}\n"
+        f"[jumphost]\n{ip} ansible_user=opc ansible_ssh_private_key_file={key}\n"
     )
     _sh(["ansible-playbook", "-i", "inventory.ini", "socks5.yml",
          "-e", f"adb_fqdn={fqdn}", "-e", f"client_cidr={cfg.get('CLIENT_CIDR', '0.0.0.0/0')}"],

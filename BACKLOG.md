@@ -11,7 +11,7 @@ The acceptance criteria are runtime demonstrations against a real OCI tenancy. T
 - Provision against a real tenancy: fill `.env` + `infra/terraform/terraform.tfvars`, then `tf apply` → `provision` → `wallet fetch` → `build` → `run` → `health`.
 - Confirm `GET /actuator/health` returns `UP` with the DB sub-check executing `SELECT 1 FROM DUAL` through the proxy.
 - Confirm the remote-DNS negative test: `SOCKS_REMOTE_DNS=false` yields readiness `DOWN` with a name-resolution/IO error; re-enabling returns `UP`.
-- **Record the §6.1 SOCKS-auth experiment result.** `DEMO.md` step 5 contains the harness and an empty results table. Run it on the live jump host (`socks_auth_method=username`, `socks_debug=2`), capture the greeting bytes via `tcpdump`/danted debug, and fill in the table (offered methods, danted response, health outcome, shipped mode). Expected: `05 01 00` / `FF` / `DOWN` → confirms the NIO client offers only no-auth and the app ships in mode B. Confirm on the wire rather than asserting.
+- **Record the §6.1 SOCKS-auth experiment result.** `DEMO.md` step 5 contains the harness and an empty results table. Run it on the live jump host (`socks_auth_method=username`, `socks_debug=2`), capture the greeting bytes via `tcpdump`/sockd debug, and fill in the table (offered methods, sockd response, health outcome, shipped mode). Expected: `05 01 00` / `FF` / `DOWN` → confirms the NIO client offers only no-auth and the app ships in mode B. Confirm on the wire rather than asserting.
 
 ## P2 — One-command Bastion demo path
 
@@ -19,7 +19,7 @@ The Bastion mode swap is currently manual (`DEMO.md` documents a hand-run `ssh -
 
 - Implement `manage.py socks up --mode bastion`: generate an ephemeral key, create the dynamic port-forwarding session, poll for `ACTIVE`, launch the `ssh -D` tunnel in the background.
 - Implement `manage.py socks down`: kill the ssh process and delete the session.
-- Implement `manage.py demo`: script the `DEMO.md` §11 sequence end-to-end (happy path, negative test, mode swap), pausing where the §6.1 experiment needs the manual danted reconfigure.
+- Implement `manage.py demo`: script the `DEMO.md` §11 sequence end-to-end (happy path, negative test, mode swap), pausing where the §6.1 experiment needs the manual sockd reconfigure.
 
 ## P3 — Security hardening for a credible demo
 
@@ -54,7 +54,7 @@ ZPR enforces intent-based allow-only paths at the OCI fabric (client→jumphost:
 
 ## P8 — Lean daemon and driver-version notes
 
-- **`microsocks` as a lean alternative** to danted (~4 MB, `-w` IP-whitelist = mode B with no SOCKS-layer auth). Useful for a minimal jump host; danted is kept for full destination/port ACLs and the debug logging the §6.1 experiment relies on.
+- **`microsocks` as a lean alternative** to sockd (~4 MB, `-w` IP-whitelist = mode B with no SOCKS-layer auth). Useful for a minimal jump host; sockd is kept for full destination/port ACLs and the debug logging the §6.1 experiment relies on.
 - **JDBC driver version:** the stack pins `ojdbc17`/`ucp17`/`oraclepki` `23.8.0.25.04` (the latest published line on Maven Central) on JDK 21. Revisit the pin as Oracle publishes newer 23.x patches; stay on JDK 21 LTS (JDK 25 has known ojdbc bugs, JDK 26 is uncertified).
 
 ## P9 — Discovery-call checklist

@@ -1,4 +1,4 @@
-logoutput: {{ '/var/log/danted.log' if socks_debug|int > 0 else 'syslog' }}
+logoutput: {{ '/var/log/sockd.log' if socks_debug|int > 0 else 'syslog' }}
 {% if socks_debug|int > 0 %}debug: {{ socks_debug }}{% endif %}
 
 internal: 0.0.0.0 port = {{ socks_port }}

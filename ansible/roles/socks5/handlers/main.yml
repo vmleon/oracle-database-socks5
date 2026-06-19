@@ -1,9 +1,9 @@
-- name: restart danted
+- name: restart sockd
   systemd:
-    name: danted
+    name: sockd
     state: restarted
 
 - name: restart sshd
   systemd:
-    name: ssh
+    name: sshd
     state: restarted

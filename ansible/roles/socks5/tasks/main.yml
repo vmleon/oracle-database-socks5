@@ -1,36 +1,49 @@
-- name: Install danted, fail2ban, unattended-upgrades
-  apt:
-    name: [dante-server, fail2ban, unattended-upgrades]
+- name: Enable the EPEL repository (provides dante-server, fail2ban)
+  dnf:
+    name: oracle-epel-release-el9
+    state: present
+
+- name: Install dante (sockd), fail2ban, dnf-automatic, firewalld
+  dnf:
+    name: [dante-server, fail2ban, dnf-automatic, firewalld]
     state: present
     update_cache: true
+    enablerepo: ol9_developer_EPEL
 
 - name: Create SOCKS auth user (username mode only)
   user:
     name: "{{ socks_username }}"
     password: "{{ socks_password | password_hash('sha512') }}"
-    shell: /usr/sbin/nologin
+    shell: /sbin/nologin
   when: socks_auth_method == 'username' and socks_password | length > 0
 
-- name: Render danted.conf
+- name: Render sockd.conf
   template:
-    src: danted.conf.j2
-    dest: /etc/danted.conf
+    src: sockd.conf.j2
+    dest: /etc/sockd.conf
     mode: "0644"
-  notify: restart danted
+  notify: restart sockd
 
-- name: Allow SSH and SOCKS from client CIDR only (ufw)
-  ufw:
-    rule: allow
-    port: "{{ item }}"
-    proto: tcp
-    src: "{{ client_cidr }}"
+- name: Ensure firewalld is enabled and running
+  systemd:
+    name: firewalld
+    enabled: true
+    state: started
+
+- name: Allow SSH and SOCKS from client CIDR only (firewalld rich rules)
+  firewalld:
+    rich_rule: "rule family=ipv4 source address={{ client_cidr }} port port={{ item }} protocol=tcp accept"
+    permanent: true
+    immediate: true
+    state: enabled
   loop: ["22", "{{ socks_port }}"]
 
-- name: Default-deny incoming
-  ufw:
-    state: enabled
-    policy: deny
-    direction: incoming
+- name: Drop the default world-open SSH service (only client_cidr reaches 22)
+  firewalld:
+    service: ssh
+    permanent: true
+    immediate: true
+    state: disabled
 
 - name: Disable SSH password auth
   lineinfile:
@@ -39,8 +52,14 @@
     line: "PasswordAuthentication no"
   notify: restart sshd
 
-- name: Enable and start danted
+- name: Enable automatic security updates
   systemd:
-    name: danted
+    name: dnf-automatic.timer
+    enabled: true
+    state: started
+
+- name: Enable and start sockd
+  systemd:
+    name: sockd
     enabled: true
     state: started

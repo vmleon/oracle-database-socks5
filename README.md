@@ -15,7 +15,7 @@ flowchart TB
   end
   subgraph OCI["OCI VCN"]
     subgraph PUB["Public subnet"]
-      JH["Jump host (compute)\ndanted SOCKS5 :1080\nNSG: ingress 1080 from CLIENT_CIDR only\ndumb relay, no wallet"]
+      JH["Jump host (compute)\nsockd SOCKS5 :1080\nNSG: ingress 1080 from CLIENT_CIDR only\ndumb relay, no wallet"]
     end
     subgraph PRIV["Private subnet"]
       PE["ADB-S private endpoint :1522 (mTLS)"]
@@ -32,7 +32,7 @@ flowchart TB
 | Area                               | Choice                                                                     | Why / when to use something else                                                                                                                                                                                                            |
 | ---------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **DB**                             | ADB-S 26ai, private endpoint, mTLS wallet                                  | Exercises wallet + private DNS + mTLS end-to-end. Toggle `auth_mode=tls` for the walletless path (§ Auth mode).                                                                                                                             |
-| **Connectivity (primary)**         | Self-managed jump host running danted (SOCKS5 daemon)                      | Always-on; no TTL; faithfully models a SOCKS5 proxy owned by the DB team.                                                                                                                                                                   |
+| **Connectivity (primary)**         | Self-managed jump host running sockd (SOCKS5 daemon)                       | Always-on; no TTL; faithfully models a SOCKS5 proxy owned by the DB team.                                                                                                                                                                   |
 | **Connectivity (demo)**            | OCI Bastion dynamic port-forwarding (SOCKS5)                               | Zero infra, free, IAM-controlled. 3-hour hard TTL — demo and ad-hoc access only.                                                                                                                                                            |
 | **Connectivity (alt, documented)** | CMAN-TDM                                                                   | Oracle-native chokepoint with per-service rules. Use when the requirement is "controlled chokepoint, no VPN" rather than literal SOCKS5. CMAN terminates Oracle Net and holds a wallet — does not satisfy "proxy must not decrypt traffic." |
 | **DNS**                            | `oracle.net.socksRemoteDNS=true`                                           | ADB private FQDN resolves only inside the VCN; the jump host does the lookup. `false` → `host not found`.                                                                                                                                   |

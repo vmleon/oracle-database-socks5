@@ -2,7 +2,7 @@
 
 This document is the demo script. There is no `manage.py demo` command; execute these steps in order.
 
-Prerequisites: infrastructure provisioned (`python manage.py tf apply`), danted installed and running (`python manage.py provision`), wallet fetched (`python manage.py wallet fetch`), app built (`python manage.py build`), `.env` populated.
+Prerequisites: infrastructure provisioned (`python manage.py tf apply`), sockd installed and running (`python manage.py provision`), wallet fetched (`python manage.py wallet fetch`), app built (`python manage.py build`), `.env` populated.
 
 ---
 
@@ -153,9 +153,9 @@ python manage.py health
 
 This section empirically determines whether the Oracle JDBC NIO SOCKS client can negotiate RFC-1929 user/pass authentication. The expected outcome per the mechanism is rejection (the NIO client offers only method `0x00`), but the wire evidence must confirm it.
 
-### 5a — Enable danted authentication
+### 5a — Enable sockd authentication
 
-On the **Ansible control node**, set the danted auth vars in `ansible/roles/socks5/defaults/main.yml`, then re-provision:
+On the **Ansible control node**, set the sockd auth vars in `ansible/roles/socks5/defaults/main.yml`, then re-provision:
 
 ```yaml
 socks_auth_method: username
@@ -177,7 +177,7 @@ cd ansible && ansible-playbook -i inventory.ini socks5.yml \
   -e adb_fqdn=<adb-private-fqdn> -e client_cidr=CLIENT_CIDR
 ```
 
-danted runs with `method: username`, `debug: 2`, and writes method-negotiation lines to `/var/log/danted.log`.
+sockd runs with `method: username`, `debug: 2`, and writes method-negotiation lines to `/var/log/sockd.log`.
 
 ### 5b — Capture wire evidence on the jump host
 
@@ -189,10 +189,10 @@ Option A — capture the raw bytes with tcpdump.
 sudo tcpdump -i any -X port 1080
 ```
 
-Option B — tail the danted debug log (requires `socks_debug=2`).
+Option B — tail the sockd debug log (requires `socks_debug=2`).
 
 ```bash
-sudo tail -f /var/log/danted.log
+sudo tail -f /var/log/sockd.log
 ```
 
 ### 5c — Attempt the "brave" path (A): native SOCKS props + NIO on + credentials
@@ -211,7 +211,7 @@ java \
 
 (The `oracle.net.socksProxyUsername/Password` names are candidate undocumented properties on the 26ai driver — include them to catch any such knob.)
 
-Observe the tcpdump or danted log. The **first client→proxy bytes** of the SOCKS5 greeting are the evidence:
+Observe the tcpdump or sockd log. The **first client→proxy bytes** of the SOCKS5 greeting are the evidence:
 
 | Greeting bytes (hex) | Interpretation                                                                                                                                            |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -224,7 +224,7 @@ Then probe health:
 python manage.py health
 ```
 
-**Expected:** health returns `DOWN`. danted logs `method username: no acceptable authentication method`. tcpdump shows `05 01 00` — the driver offered only no-auth. The `java.net.socks.*` system properties are ignored by the NIO code path.
+**Expected:** health returns `DOWN`. sockd logs `method username: no acceptable authentication method`. tcpdump shows `05 01 00` — the driver offered only no-auth. The `java.net.socks.*` system properties are ignored by the NIO code path.
 
 If health returns `UP` unexpectedly, the 26ai driver added a native SOCKS-auth property — record which property name produced the connection.
 
@@ -232,13 +232,13 @@ If health returns `UP` unexpectedly, the 26ai driver added a native SOCKS-auth p
 
 Record the empirical finding here after running the experiment:
 
-| Offered methods (hex)    | danted response      | Health outcome | App mode    |
+| Offered methods (hex)    | sockd response       | Health outcome | App mode    |
 | ------------------------ | -------------------- | -------------- | ----------- |
 | _(fill in from tcpdump)_ | _(fill in from log)_ | _(UP / DOWN)_  | _(fill in)_ |
 
 **Expected result:** `05 01 00` / `FF` / `DOWN` / mode (B) — confirming the NIO client cannot do SOCKS-layer auth.
 
-### 5e — Revert danted to no-auth and confirm mode (B)
+### 5e — Revert sockd to no-auth and confirm mode (B)
 
 Restore the production configuration:
 
@@ -277,7 +277,7 @@ Mode (B): `oracle.net.socks*` properties only, NIO on, no SOCKS-layer auth. Secu
 
 ## Step 6 — Mode swap: Bastion dynamic port-forwarding
 
-The Bastion mode uses an OCI Bastion dynamic port-forwarding session as the SOCKS5 endpoint instead of the always-on danted daemon. The JDBC driver behavior is identical; only `SOCKS_HOST` and `SOCKS_PORT` change.
+The Bastion mode uses an OCI Bastion dynamic port-forwarding session as the SOCKS5 endpoint instead of the always-on sockd daemon. The JDBC driver behavior is identical; only `SOCKS_HOST` and `SOCKS_PORT` change.
 
 Start an OCI Bastion session outside manage.py, using the OCI console or CLI. Create a dynamic port-forwarding session.
 
