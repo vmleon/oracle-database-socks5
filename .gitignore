@@ -1,5 +1,6 @@
 # secrets / state / generated
 .env
+infra/terraform/terraform.tfvars
 wallet/
 *.tfstate
 *.tfstate.*

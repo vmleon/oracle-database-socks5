@@ -1,3 +1,7 @@
+variable "oci_profile" {
+  type    = string
+  default = "DEFAULT"
+}
 variable "region" { type = string }
 variable "compartment_ocid" { type = string }
 variable "client_cidr" {

@@ -29,7 +29,7 @@ The Bastion mode swap is currently manual (`DEMO.md` documents a hand-run `ssh -
 
 ## P4 — Exercise the walletless TLS auth mode
 
-`auth_mode=tls` is wired (app branch + `DB_TLS_URL` in `.env.example`) but only the mtls path has been exercised.
+`auth_mode=tls` is wired (app branch + `setup` writes `AUTH_MODE`) but only the mtls path has been exercised. For `tls`, `setup` leaves the wallet path empty; the TLS connect string from the ADB console still needs to be supplied as `DB_TLS_URL` after the database exists.
 
 - Set `is_mtls_connection_required = false` on the ADB (walletless TLS is available because the endpoint is private), populate `DB_TLS_URL` with the console TLS connect string, and demonstrate the simplification: no `TNS_ADMIN`, no wallet download, no cert-expiry. The SOCKS path and `oracle.net.socks*` properties are unchanged.
 

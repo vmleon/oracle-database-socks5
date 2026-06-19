@@ -72,19 +72,13 @@ Create the Python virtual environment. This is a one-time step that must run bef
 python3 -m venv .venv
 ```
 
-Install the orchestrator's dependencies into the virtual environment.
+Install the orchestrator and its dependencies into the virtual environment.
 
 ```bash
-.venv/bin/pip install typer python-dotenv pytest
+.venv/bin/pip install -e .
 ```
 
-Copy the environment template, then edit `.env` to fill in your compartment OCID, region, client CIDR, and DB password.
-
-```bash
-cp .env.example .env
-```
-
-Check that the required tools are installed and seed any missing configuration.
+Configure the project. This is interactive: it reads your `~/.oci/config`, lets you pick the OCI profile, region, and compartment from lists, auto-detects your public IP for the jump host allowlist, picks your SSH key, and generates the database password. It writes `.env` and `infra/terraform/terraform.tfvars` for you — nothing to edit by hand. The only prerequisite is a working OCI CLI config (`oci setup config`).
 
 ```bash
 .venv/bin/python manage.py setup
@@ -130,7 +124,7 @@ Confirm DB connectivity through the proxy. A healthy response is `{"status":"UP"
 
 ## Auth mode
 
-Set `AUTH_MODE` in `.env` (or pass `--auth-mode` at runtime):
+`setup` asks which auth mode to use and records it in `.env` (`AUTH_MODE`) and `terraform.tfvars`:
 
 | `AUTH_MODE`      | What changes                                                                                                                                          |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |

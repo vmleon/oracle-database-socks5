@@ -12,7 +12,7 @@ Ordered, copy-pasteable steps to go from zero to a running health endpoint.
 | OCI CLI                   | current         | `oci setup config` complete                                                     |
 | Terraform                 | ≥ 1.6           | Latest `hashicorp/oci` provider                                                 |
 | Ansible                   | current         | `ansible-playbook` on PATH                                                      |
-| Python                    | 3.11+           | Create `.venv` manually before any `manage.py` call (see step 3c)               |
+| Python                    | 3.11+           | Create `.venv` and `pip install -e .` before any `manage.py` call (see step 3)  |
 | JDK                       | 21 LTS          | `JAVA_HOME` pointing at JDK 21                                                  |
 | OpenSSH                   | —               | `ssh`, `ssh-keygen` on PATH                                                     |
 | curl                      | —               | Used by `manage.py health`                                                      |
@@ -21,66 +21,18 @@ Ordered, copy-pasteable steps to go from zero to a running health endpoint.
 
 ---
 
-## 2. Open parameters to pin before you start
+## 2. What you need before you start
 
-Collect these four values; you will write them into `terraform.tfvars` and `.env` in step 3.
+You do not collect OCIDs or CIDRs by hand — `manage.py setup` (step 3) discovers them. You only need:
 
-| Parameter          | Description                                                                                 | Example                        |
-| ------------------ | ------------------------------------------------------------------------------------------- | ------------------------------ |
-| `region`           | OCI region identifier                                                                       | `eu-frankfurt-1`               |
-| `compartment_ocid` | Target compartment OCID                                                                     | `ocid1.compartment.oc1..xxxxx` |
-| `client_cidr`      | Your public egress IP as a `/32` — used for jump host NSG ingress rules (ports 22 and 1080) | `203.0.113.10/32`              |
-| `ssh_public_key`   | Contents of your SSH public key                                                             | `ssh-rsa AAAA…`                |
+- A working OCI CLI config at `~/.oci/config`. Run `oci setup config` if you have not already.
+- An SSH key pair in `~/.ssh` (or any path you can point `setup` at).
+
+From those, `setup` lists your subscribed regions and accessible compartments, auto-detects your public IP for the jump host allowlist, and generates the database password.
 
 ---
 
 ## 3. Configure
-
-### 3a. Terraform variables
-
-```bash
-cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars
-```
-
-Edit `infra/terraform/terraform.tfvars` and set at minimum:
-
-```hcl
-region            = "eu-frankfurt-1"
-compartment_ocid  = "ocid1.compartment.oc1..xxxxx"
-client_cidr       = "203.0.113.10/32"
-ssh_public_key    = "ssh-rsa AAAA…"
-db_admin_password = "YourStr0ngPass#"
-```
-
-`enable_bastion = false` is the default (jump host only). Set `true` to also create the OCI Bastion resource for the demo path.
-
-### 3b. Application environment
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```bash
-OCI_REGION=eu-frankfurt-1
-COMPARTMENT_OCID=ocid1.compartment.oc1..xxxxx
-CLIENT_CIDR=203.0.113.10/32
-SSH_PUBLIC_KEY_PATH=~/.ssh/id_rsa.pub
-
-MODE=jumphost
-SOCKS_PORT=1080
-
-AUTH_MODE=mtls
-TNS_ALIAS=dbpoc_high
-WALLET_PATH=./wallet
-DB_USER=ADMIN
-DB_PASSWORD=YourStr0ngPass#
-```
-
-(`SOCKS_HOST` is populated automatically from Terraform output; leave it blank for now.)
-
-### 3c. Create the virtual environment and check prerequisites
 
 Create the virtual environment. This must run before any `manage.py` call.
 
@@ -88,13 +40,22 @@ Create the virtual environment. This must run before any `manage.py` call.
 python3 -m venv .venv
 ```
 
-Install the Python dependencies into it.
+Install the orchestrator and its dependencies into it.
 
 ```bash
-.venv/bin/pip install typer python-dotenv pytest
+.venv/bin/pip install -e .
 ```
 
-Check prerequisites and seed `.env`. This verifies each required tool is on `PATH` and, if `.env` does not exist, seeds it from `.env.example`.
+Run the interactive setup. It checks your tools, reads `~/.oci/config`, then prompts you to:
+
+- pick the OCI profile,
+- pick the region from your subscribed regions,
+- pick the compartment from a searchable list,
+- confirm the client CIDR (pre-filled with `<your-public-ip>/32`),
+- pick the SSH key,
+- choose the database name, the auth mode (`mtls` or `tls`), and whether to create the OCI Bastion demo path.
+
+It generates the database password and writes `.env` and `infra/terraform/terraform.tfvars`. Nothing is edited by hand.
 
 ```bash
 .venv/bin/python manage.py setup
@@ -104,16 +65,10 @@ Check prerequisites and seed `.env`. This verifies each required tool is on `PAT
 
 ## 4. Provision infrastructure
 
-Provision the VCN, public subnet (jump host), private subnet (ADB-S private endpoint), NSGs, and the ADB instance. The jump host public IP and ADB private FQDN are written to Terraform state and read automatically by subsequent `manage.py` commands.
+Provision the VCN, public subnet (jump host), private subnet (ADB-S private endpoint), NSGs, and the ADB instance. This runs `terraform init` automatically and reads `terraform.tfvars` written by `setup`. The OCI Bastion resource is created here only if you chose it during `setup`. The jump host public IP and ADB private FQDN are written to Terraform state and read automatically by subsequent `manage.py` commands.
 
 ```bash
 .venv/bin/python manage.py tf apply
-```
-
-To also create the demo Bastion resource, run this instead.
-
-```bash
-.venv/bin/python manage.py tf apply --enable-bastion
 ```
 
 ---
@@ -180,7 +135,7 @@ Confirm connectivity. This calls `GET localhost:8080/actuator/health` and exits 
 
 ## 9. Optional: Bastion demo path
 
-If you provisioned with `--enable-bastion`, you can route JDBC through OCI Bastion instead of the jump host. The Bastion path is ephemeral (3-hour hard session TTL) and is intended for demo/ad-hoc access only.
+If you chose to create the Bastion during `setup` (so `enable_bastion = true` in `terraform.tfvars`), you can route JDBC through OCI Bastion instead of the jump host. The Bastion path is ephemeral (3-hour hard session TTL) and is intended for demo/ad-hoc access only.
 
 Create a Bastion dynamic port-forwarding session via the OCI Console or CLI, then open the local SOCKS tunnel manually:
 
