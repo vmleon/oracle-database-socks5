@@ -13,5 +13,10 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 
+# manage.py is a single top-level script, not a package — disable setuptools
+# package auto-discovery so it does not try to package app/ infra/ ansible/.
+[tool.setuptools]
+py-modules = ["manage"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]

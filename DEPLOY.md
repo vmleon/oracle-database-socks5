@@ -46,7 +46,7 @@ Activate it. Do this once per shell session — every `manage.py` command below 
 source .venv/bin/activate
 ```
 
-Install the orchestrator and its dependencies into it.
+Install the orchestrator and its dependencies into it. `pip install -e .` reads `pyproject.toml` and installs the Python packages `manage.py` needs (typer, python-dotenv, the OCI SDK, InquirerPy, rich). The `-e` ("editable") flag links the project in place rather than copying it, so edits to `manage.py` take effect immediately and the dependency list stays defined in one file.
 
 ```bash
 pip install -e .
