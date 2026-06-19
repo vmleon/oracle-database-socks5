@@ -60,65 +60,11 @@ flowchart TB
 
 ## Quickstart
 
-Full step-by-step instructions are in **[DEPLOY.md](DEPLOY.md)**. The demo narrative is in **[DEMO.md](DEMO.md)**.
+Deployment is fully scripted by `manage.py`. The end-to-end flow is: configure (`setup`) → provision infrastructure (`tf apply`) → install the SOCKS5 daemon (`provision`) → fetch the wallet (`wallet fetch`) → build and run the app (`build`, `run`) → verify (`health`).
 
-### Command flow
+`setup` is interactive: it reads your `~/.oci/config`, lets you pick the OCI profile, region, and compartment from lists, auto-detects your public IP for the jump host allowlist, picks your SSH key, and generates the database password — writing `.env` and `terraform.tfvars` for you, with nothing to edit by hand.
 
-Run these one at a time. Each step builds on the previous one.
-
-Create the Python virtual environment. This is a one-time step that must run before any `manage.py` call.
-
-```bash
-python3 -m venv .venv
-```
-
-Install the orchestrator and its dependencies into the virtual environment.
-
-```bash
-.venv/bin/pip install -e .
-```
-
-Configure the project. This is interactive: it reads your `~/.oci/config`, lets you pick the OCI profile, region, and compartment from lists, auto-detects your public IP for the jump host allowlist, picks your SSH key, and generates the database password. It writes `.env` and `infra/terraform/terraform.tfvars` for you — nothing to edit by hand. The only prerequisite is a working OCI CLI config (`oci setup config`).
-
-```bash
-.venv/bin/python manage.py setup
-```
-
-Provision the infrastructure: the VCN, the private ADB-S, and the public jump host.
-
-```bash
-.venv/bin/python manage.py tf apply
-```
-
-Install and harden the danted SOCKS5 daemon on the jump host.
-
-```bash
-.venv/bin/python manage.py provision
-```
-
-Download a fresh wallet into `wallet/`.
-
-```bash
-.venv/bin/python manage.py wallet fetch
-```
-
-Build the Spring Boot jar. This runs `./gradlew bootJar` and produces `app/build/libs/socks5poc-*.jar`.
-
-```bash
-.venv/bin/python manage.py build
-```
-
-Start the app.
-
-```bash
-.venv/bin/python manage.py run
-```
-
-Confirm DB connectivity through the proxy. A healthy response is `{"status":"UP"}` with the DB sub-check, latency, pool stats, and the socks host:port.
-
-```bash
-.venv/bin/python manage.py health
-```
+See **[DEPLOY.md](DEPLOY.md)** for the full, copy-pasteable steps, and **[DEMO.md](DEMO.md)** for the validation walkthrough.
 
 ---
 
@@ -157,14 +103,4 @@ Wallets generated before 28 Jan 2026 carry DigiCert G1 roots, which stop working
 - **Jump host:** smallest Flex or A1 shape. Stoppable when not in use.
 - **OCI Bastion:** free; sessions are ephemeral.
 
-Stop the app and clear the local `wallet/` contents.
-
-```bash
-.venv/bin/python manage.py clean
-```
-
-Tear down all OCI resources.
-
-```bash
-.venv/bin/python manage.py tf destroy
-```
+Teardown steps are in **[DEPLOY.md](DEPLOY.md#10-teardown)**.

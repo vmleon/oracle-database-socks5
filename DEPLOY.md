@@ -34,16 +34,22 @@ From those, `setup` lists your subscribed regions and accessible compartments, a
 
 ## 3. Configure
 
-Create the virtual environment. This must run before any `manage.py` call.
+Create the virtual environment.
 
 ```bash
 python3 -m venv .venv
 ```
 
+Activate it. Do this once per shell session — every `manage.py` command below assumes the environment is active.
+
+```bash
+source .venv/bin/activate
+```
+
 Install the orchestrator and its dependencies into it.
 
 ```bash
-.venv/bin/pip install -e .
+pip install -e .
 ```
 
 Run the interactive setup. It checks your tools, reads `~/.oci/config`, then prompts you to:
@@ -58,7 +64,7 @@ Run the interactive setup. It checks your tools, reads `~/.oci/config`, then pro
 It generates the database password and writes `.env` and `infra/terraform/terraform.tfvars`. Nothing is edited by hand.
 
 ```bash
-.venv/bin/python manage.py setup
+python manage.py setup
 ```
 
 ---
@@ -68,7 +74,7 @@ It generates the database password and writes `.env` and `infra/terraform/terraf
 Provision the VCN, public subnet (jump host), private subnet (ADB-S private endpoint), NSGs, and the ADB instance. This runs `terraform init` automatically and reads `terraform.tfvars` written by `setup`. The OCI Bastion resource is created here only if you chose it during `setup`. The jump host public IP and ADB private FQDN are written to Terraform state and read automatically by subsequent `manage.py` commands.
 
 ```bash
-.venv/bin/python manage.py tf apply
+python manage.py tf apply
 ```
 
 ---
@@ -78,7 +84,7 @@ Provision the VCN, public subnet (jump host), private subnet (ADB-S private endp
 This reads the jump host public IP and ADB private FQDN from Terraform output, renders `ansible/inventory.ini`, then runs the Ansible `socks5` role. The role installs and hardens the `danted` SOCKS5 daemon, restricts ingress to `CLIENT_CIDR`, and restricts egress to the ADB private endpoint on port 1522.
 
 ```bash
-.venv/bin/python manage.py provision
+python manage.py provision
 ```
 
 ---
@@ -88,7 +94,7 @@ This reads the jump host public IP and ADB private FQDN from Terraform output, r
 Download a fresh wallet ZIP from OCI, unzip it into `wallet/`, and set all files to `chmod 600`.
 
 ```bash
-.venv/bin/python manage.py wallet fetch
+python manage.py wallet fetch
 ```
 
 > **Wallet freshness requirement:** wallets carry DigiCert root certificates. Wallets minted before 28 Jan 2026 carry G1 roots which are not trusted after 15 Apr 2026; current wallets use G2 roots. Always fetch a current wallet — never reuse stale wallet material. See the troubleshooting section if you see certificate errors.
@@ -100,7 +106,7 @@ Download a fresh wallet ZIP from OCI, unzip it into `wallet/`, and set all files
 Check that the jump host is reachable on port 1080. Expected output: `<IP>:1080 reachable`.
 
 ```bash
-.venv/bin/python manage.py socks status
+python manage.py socks status
 ```
 
 Independently verify the SOCKS relay carries TCP to the ADB port. A successful TCP handshake (then a closed connection) confirms the relay and remote DNS resolution both work.
@@ -116,19 +122,19 @@ curl -v --socks5-hostname <JUMPHOST_IP>:1080 telnet://<ADB_PRIVATE_FQDN>:1522
 Build the application JAR. This runs `./gradlew bootJar` inside `app/`; the output JAR lands in `app/build/libs/`.
 
 ```bash
-.venv/bin/python manage.py build
+python manage.py build
 ```
 
 Launch the JAR with all environment variables from `.env` and Terraform output. The app binds on port 8080.
 
 ```bash
-.venv/bin/python manage.py run
+python manage.py run
 ```
 
 Confirm connectivity. This calls `GET localhost:8080/actuator/health` and exits non-zero if the status is not `UP`. A successful response includes the database sub-check, which confirms an end-to-end query executed through the SOCKS5 proxy.
 
 ```bash
-.venv/bin/python manage.py health
+python manage.py health
 ```
 
 ---
@@ -153,7 +159,7 @@ SOCKS_HOST=127.0.0.1
 SOCKS_PORT=1080
 ```
 
-Then run `.venv/bin/python manage.py run` and `.venv/bin/python manage.py health` as usual. The JDBC behavior is identical; only `SOCKS_HOST` changes.
+Then run `python manage.py run` and `python manage.py health` as usual. The JDBC behavior is identical; only `SOCKS_HOST` changes.
 
 ---
 
@@ -162,7 +168,7 @@ Then run `.venv/bin/python manage.py run` and `.venv/bin/python manage.py health
 Remove `wallet/` contents and run `terraform destroy` to tear down all OCI resources.
 
 ```bash
-.venv/bin/python manage.py clean --destroy
+python manage.py clean --destroy
 ```
 
 ---
@@ -192,7 +198,7 @@ chmod 600 wallet/*
 
 ### DigiCert G1 vs G2 wallet roots
 
-Wallets minted before 28 Jan 2026 carry DigiCert G1 roots. G1 roots are not trusted after 15 Apr 2026. If you see `PKIX path building failed`, `certificate unknown`, or similar TLS errors, your wallet is stale. Fix: run `.venv/bin/python manage.py wallet fetch` to pull a current (G2) wallet.
+Wallets minted before 28 Jan 2026 carry DigiCert G1 roots. G1 roots are not trusted after 15 Apr 2026. If you see `PKIX path building failed`, `certificate unknown`, or similar TLS errors, your wallet is stale. Fix: run `python manage.py wallet fetch` to pull a current (G2) wallet.
 
 ### danted directive names across versions
 
@@ -200,4 +206,4 @@ Older `danted` packages use `method:` while newer ones use `socksmethod:` (withi
 
 ### `tnsping` does not traverse SOCKS
 
-`tnsping` uses the Oracle thick client (C libraries), which does not honour `oracle.net.socks*` JDBC properties. A failing `tnsping` alongside a working JDBC connection is expected and normal — use `.venv/bin/python manage.py health` or the `curl --socks5-hostname` test in step 7 to verify connectivity instead.
+`tnsping` uses the Oracle thick client (C libraries), which does not honour `oracle.net.socks*` JDBC properties. A failing `tnsping` alongside a working JDBC connection is expected and normal — use `python manage.py health` or the `curl --socks5-hostname` test in step 7 to verify connectivity instead.
