@@ -143,16 +143,16 @@ The SOCKS path (`oracle.net.socksProxyHost/Port/RemoteDNS`) is identical for bot
 
 ## Anti-patterns
 
-**Legacy JVM SOCKS (`socksProxyHost` + `javaNetNio=false`)**
+**❌ Legacy JVM SOCKS (`socksProxyHost` + `javaNetNio=false`)**
 Using JVM system properties `java.net.socks.*` with `oracle.jdbc.javaNetNio=false` disables non-blocking I/O driver-wide. This is a global, performance-degrading setting that broke in driver versions 12.2–18c. Use the connection-scoped `oracle.net.socks*` properties instead.
 
-**Missing `oracle.net.socksRemoteDNS=true`**
+**❌ Missing `oracle.net.socksRemoteDNS=true`**
 The ADB private FQDN is not resolvable outside the VCN. Without this property, the client attempts to resolve the FQDN locally, gets `host not found`, and the connection fails. The demo includes a negative test that reproduces this failure.
 
-**Treating OCI Bastion as always-on**
+**❌ Treating OCI Bastion as always-on**
 OCI Bastion sessions have a hard 3-hour TTL (maximum, not raisable). Any reconnect loop that re-creates sessions before expiry has a gap window and is not suitable for a production data plane.
 
-**Reusing a pre-2026 wallet (DigiCert G1)**
+**❌ Reusing a pre-2026 wallet (DigiCert G1)**
 Wallets generated before 28 Jan 2026 carry DigiCert G1 roots, which stop working after 15 Apr 2026. Current wallets use G2. `manage.py wallet fetch` always pulls a fresh wallet — never reuse stale wallet material.
 
 ---

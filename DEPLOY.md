@@ -82,56 +82,59 @@ DB_PASSWORD=YourStr0ngPass#
 
 ### 3c. Create the virtual environment and check prerequisites
 
-Create the `.venv` and install the Python dependencies before any `manage.py` call:
+Create the virtual environment. This must run before any `manage.py` call.
 
 ```bash
 python3 -m venv .venv
+```
+
+Install the Python dependencies into it.
+
+```bash
 .venv/bin/pip install typer python-dotenv pytest
 ```
 
-Then check prerequisites and seed `.env`:
+Check prerequisites and seed `.env`. This verifies each required tool is on `PATH` and, if `.env` does not exist, seeds it from `.env.example`.
 
 ```bash
 .venv/bin/python manage.py setup
 ```
 
-This checks each required tool is on `PATH`. If `.env` does not exist it seeds it from `.env.example`.
-
 ---
 
 ## 4. Provision infrastructure
+
+Provision the VCN, public subnet (jump host), private subnet (ADB-S private endpoint), NSGs, and the ADB instance. The jump host public IP and ADB private FQDN are written to Terraform state and read automatically by subsequent `manage.py` commands.
 
 ```bash
 .venv/bin/python manage.py tf apply
 ```
 
-To also create the demo Bastion resource:
+To also create the demo Bastion resource, run this instead.
 
 ```bash
 .venv/bin/python manage.py tf apply --enable-bastion
 ```
 
-Terraform provisions the VCN, public subnet (jump host), private subnet (ADB-S private endpoint), NSGs, and the ADB instance. The jump host public IP and ADB private FQDN are written to Terraform state and read automatically by subsequent `manage.py` commands.
-
 ---
 
 ## 5. Configure the jump host (SOCKS5 daemon)
+
+This reads the jump host public IP and ADB private FQDN from Terraform output, renders `ansible/inventory.ini`, then runs the Ansible `socks5` role. The role installs and hardens the `danted` SOCKS5 daemon, restricts ingress to `CLIENT_CIDR`, and restricts egress to the ADB private endpoint on port 1522.
 
 ```bash
 .venv/bin/python manage.py provision
 ```
 
-This reads the jump host public IP and ADB private FQDN from Terraform output, renders `ansible/inventory.ini`, then runs the Ansible `socks5` role. The role installs and hardens the `danted` SOCKS5 daemon, restricts ingress to `CLIENT_CIDR`, and restricts egress to the ADB private endpoint on port 1522.
-
 ---
 
 ## 6. Fetch the ADB wallet
 
+Download a fresh wallet ZIP from OCI, unzip it into `wallet/`, and set all files to `chmod 600`.
+
 ```bash
 .venv/bin/python manage.py wallet fetch
 ```
-
-Downloads a fresh wallet ZIP from OCI, unzips it into `wallet/`, and sets all files to `chmod 600`.
 
 > **Wallet freshness requirement:** wallets carry DigiCert root certificates. Wallets minted before 28 Jan 2026 carry G1 roots which are not trusted after 15 Apr 2026; current wallets use G2 roots. Always fetch a current wallet — never reuse stale wallet material. See the troubleshooting section if you see certificate errors.
 
@@ -139,41 +142,39 @@ Downloads a fresh wallet ZIP from OCI, unzips it into `wallet/`, and sets all fi
 
 ## 7. Verify connectivity
 
+Check that the jump host is reachable on port 1080. Expected output: `<IP>:1080 reachable`.
+
 ```bash
 .venv/bin/python manage.py socks status
 ```
 
-This checks that the jump host is reachable on port 1080. Expected output: `<IP>:1080 reachable`.
-
-You can also independently verify the SOCKS relay carries TCP to the ADB port:
+Independently verify the SOCKS relay carries TCP to the ADB port. A successful TCP handshake (then a closed connection) confirms the relay and remote DNS resolution both work.
 
 ```bash
 curl -v --socks5-hostname <JUMPHOST_IP>:1080 telnet://<ADB_PRIVATE_FQDN>:1522
 ```
 
-A successful TCP handshake (then a closed connection) confirms the relay and remote DNS resolution both work.
-
 ---
 
 ## 8. Build and run the application
+
+Build the application JAR. This runs `./gradlew bootJar` inside `app/`; the output JAR lands in `app/build/libs/`.
 
 ```bash
 .venv/bin/python manage.py build
 ```
 
-Runs `./gradlew bootJar` inside `app/`. The output JAR lands in `app/build/libs/`.
+Launch the JAR with all environment variables from `.env` and Terraform output. The app binds on port 8080.
 
 ```bash
 .venv/bin/python manage.py run
 ```
 
-Launches the JAR with all environment variables from `.env` and Terraform output. The app binds on port 8080.
+Confirm connectivity. This calls `GET localhost:8080/actuator/health` and exits non-zero if the status is not `UP`. A successful response includes the database sub-check, which confirms an end-to-end query executed through the SOCKS5 proxy.
 
 ```bash
 .venv/bin/python manage.py health
 ```
-
-Calls `GET localhost:8080/actuator/health` and exits non-zero if the status is not `UP`. A successful response includes the database sub-check, which confirms an end-to-end query executed through the SOCKS5 proxy.
 
 ---
 
@@ -203,11 +204,11 @@ Then run `.venv/bin/python manage.py run` and `.venv/bin/python manage.py health
 
 ## 10. Teardown
 
+Remove `wallet/` contents and run `terraform destroy` to tear down all OCI resources.
+
 ```bash
 .venv/bin/python manage.py clean --destroy
 ```
-
-Removes `wallet/` contents and runs `terraform destroy`.
 
 ---
 
