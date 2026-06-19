@@ -306,12 +306,16 @@ def setup():
 @app.command()
 def tf(action: str):
     """plan | apply | destroy (reads infra/terraform/terraform.tfvars)."""
+    # Force Go's cgo resolver so Terraform uses the macOS system resolver
+    # (honouring VPN / scoped DNS) instead of its built-in resolver, which can
+    # fail to resolve *.oraclecloud.com.
+    env = {**os.environ, "GODEBUG": "netdns=cgo"}
     if action in ("plan", "apply"):
-        _sh(["terraform", "init", "-input=false"], cwd=TF_DIR)
+        _sh(["terraform", "init", "-input=false"], cwd=TF_DIR, env=env)
     args = ["terraform", action]
     if action in ("apply", "destroy"):
         args.append("-auto-approve")
-    _sh(args, cwd=TF_DIR)
+    _sh(args, cwd=TF_DIR, env=env)
 
 
 @app.command()
