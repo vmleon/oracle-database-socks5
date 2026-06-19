@@ -17,7 +17,7 @@ client pass {
 
 # relay only to the ADB private endpoint on 1522
 socks pass {
-    from: {{ client_cidr }} to: {{ adb_fqdn }}/32 port = 1522
+    from: {{ client_cidr }} to: {{ adb_fqdn }} port = 1522
     protocol: tcp
     {% if socks_auth_method == 'username' %}socksmethod: username{% endif %}
     log: connect disconnect error
