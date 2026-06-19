@@ -49,8 +49,12 @@ def load_config(cli_overrides: dict) -> dict:
     return cfg
 
 
+_SECRET_FLAGS = {"--password", "--admin-password"}
+
+
 def _sh(cmd, **kw):
-    typer.echo("$ " + " ".join(cmd))
+    safe = ["***" if i > 0 and cmd[i - 1] in _SECRET_FLAGS else a for i, a in enumerate(cmd)]
+    typer.echo("$ " + " ".join(safe))
     return subprocess.run(cmd, check=True, **kw)
 
 
@@ -100,7 +104,10 @@ def wallet(action: str = "fetch"):
     tf = _read_tf_output()
     adb_id = _tf_value(tf, "adb_id")
     Path("wallet").mkdir(exist_ok=True)
-    pwd = cfg.get("DB_PASSWORD", "Welcome_12345#")
+    pwd = cfg.get("DB_PASSWORD")
+    if not pwd:
+        typer.echo("DB_PASSWORD not set — set it in .env")
+        raise typer.Exit(1)
     _sh(["oci", "db", "autonomous-database", "generate-wallet",
          "--autonomous-database-id", adb_id,
          "--password", pwd, "--file", "wallet/wallet.zip"])
