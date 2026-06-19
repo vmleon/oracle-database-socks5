@@ -66,7 +66,7 @@ flowchart LR
 
 ## Quickstart
 
-Full step-by-step instructions are in **[DEPLOY.md](docs/DEPLOY.md)**. The demo narrative is in **[DEMO.md](docs/DEMO.md)**.
+Full step-by-step instructions are in **[DEPLOY.md](DEPLOY.md)**. The demo narrative is in **[DEMO.md](DEMO.md)**.
 
 ### Command flow
 
