@@ -134,17 +134,7 @@ This section empirically determines whether the Oracle JDBC NIO SOCKS client can
 
 ### 5a — Enable danted authentication
 
-On the **Ansible control node**, edit `ansible/roles/socks5/defaults/main.yml` or pass extra vars:
-
-```bash
-python manage.py provision \
-  -e socks_auth_method=username \
-  -e socks_debug=2 \
-  -e socks_username=socksuser \
-  -e "socks_password=<choose-a-test-password>"
-```
-
-Alternatively, set the vars directly and re-run provision:
+On the **Ansible control node**, set the danted auth vars in `ansible/roles/socks5/defaults/main.yml`, then re-provision:
 
 ```yaml
 # ansible/roles/socks5/defaults/main.yml (temporary — revert after experiment)
@@ -156,6 +146,15 @@ socks_password: "<test-password>"
 
 ```bash
 python manage.py provision
+```
+
+To flip the vars without editing the defaults file, invoke the role directly with extra vars (this bypasses `manage.py provision`, which only forwards `adb_fqdn` and `client_cidr`):
+
+```bash
+cd ansible && ansible-playbook -i inventory.ini socks5.yml \
+  -e socks_auth_method=username -e socks_debug=2 \
+  -e socks_username=socksuser -e "socks_password=<test-password>" \
+  -e adb_fqdn=<adb-private-fqdn> -e client_cidr=CLIENT_CIDR
 ```
 
 danted runs with `method: username`, `debug: 2`, and writes method-negotiation lines to `/var/log/danted.log`.
