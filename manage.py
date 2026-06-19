@@ -2,6 +2,7 @@
 """Orchestrator CLI for the Oracle SOCKS5 JDBC PoC."""
 import json
 import os
+import socket
 import subprocess
 from pathlib import Path
 
@@ -28,6 +29,13 @@ def _read_tf_output() -> dict:
         return json.loads(out or "{}")
     except (subprocess.CalledProcessError, FileNotFoundError):
         return {}
+
+
+def _tf_value(tf, key):
+    if key not in tf:
+        typer.echo(f"missing terraform output '{key}' — run 'manage.py tf apply' first")
+        raise typer.Exit(1)
+    return tf[key]["value"]
 
 
 def load_config(cli_overrides: dict) -> dict:
@@ -73,8 +81,8 @@ def provision():
     """Render inventory from TF output and run the ansible socks5 role."""
     cfg = load_config({})
     tf = _read_tf_output()
-    ip = tf["jumphost_public_ip"]["value"]
-    fqdn = tf["adb_private_endpoint"]["value"]
+    ip = _tf_value(tf, "jumphost_public_ip")
+    fqdn = _tf_value(tf, "adb_private_endpoint")
     inv = Path("ansible/inventory.ini")
     inv.write_text(
         f"[jumphost]\n{ip} ansible_user=ubuntu "
@@ -90,7 +98,7 @@ def wallet(action: str = "fetch"):
     """Download + unzip the ADB wallet (fresh G2) into wallet/."""
     cfg = load_config({})
     tf = _read_tf_output()
-    adb_id = tf["adb_id"]["value"]
+    adb_id = _tf_value(tf, "adb_id")
     Path("wallet").mkdir(exist_ok=True)
     pwd = cfg.get("DB_PASSWORD", "Welcome_12345#")
     _sh(["oci", "db", "autonomous-database", "generate-wallet",
@@ -107,9 +115,14 @@ def socks(action: str, mode: str = "jumphost", port: int = 1080):
     cfg = load_config({"MODE": mode})
     if action == "status":
         host = cfg.get("SOCKS_HOST", "127.0.0.1")
-        rc = subprocess.run(["nc", "-z", "-w", "3", host, str(port)]).returncode
-        typer.echo(f"{host}:{port} {'reachable' if rc == 0 else 'DOWN'}")
-        raise typer.Exit(rc)
+        try:
+            with socket.create_connection((host, port), timeout=3):
+                pass
+            typer.echo(f"{host}:{port} reachable")
+            raise typer.Exit(0)
+        except OSError:
+            typer.echo(f"{host}:{port} DOWN")
+            raise typer.Exit(1)
     typer.echo("up/down implemented for bastion mode (see DEMO.md)")
 
 

@@ -5,6 +5,18 @@ resource "oci_core_vcn" "this" {
   dns_label      = "socks5poc"
 }
 
+resource "oci_core_default_security_list" "default" {
+  manage_default_resource_id = oci_core_vcn.this.default_security_list_id
+  compartment_id             = var.compartment_ocid
+  display_name               = "socks5-poc-default-sl"
+
+  egress_security_rules {
+    destination = "0.0.0.0/0"
+    protocol    = "all"
+  }
+  # no ingress rules: all ingress is governed by NSGs (client-CIDR allowlist)
+}
+
 resource "oci_core_internet_gateway" "igw" {
   compartment_id = var.compartment_ocid
   vcn_id         = oci_core_vcn.this.id

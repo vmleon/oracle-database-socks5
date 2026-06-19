@@ -71,27 +71,31 @@ Full step-by-step instructions are in **[DEPLOY.md](DEPLOY.md)**. The demo narra
 ### Command flow
 
 ```bash
+# 0. Create the virtual environment (one-time, before any manage.py call)
+python3 -m venv .venv
+.venv/bin/pip install typer python-dotenv pytest
+
 # 1. Check prerequisites and seed .env
-python manage.py setup
+.venv/bin/python manage.py setup
 
 # 2. Provision infra (VCN + ADB-S + jump host)
-python manage.py tf apply
+.venv/bin/python manage.py tf apply
 
 # 3. Install and harden danted on the jump host
-python manage.py provision
+.venv/bin/python manage.py provision
 
 # 4. Download a fresh wallet into wallet/
-python manage.py wallet fetch
+.venv/bin/python manage.py wallet fetch
 
 # 5. Build the Spring Boot jar
-python manage.py build
+.venv/bin/python manage.py build
 # Runs: ./gradlew bootJar   Output: app/build/libs/socks5poc-*.jar
 
 # 6. Start the app
-python manage.py run
+.venv/bin/python manage.py run
 
 # 7. Confirm DB connectivity through the proxy
-python manage.py health
+.venv/bin/python manage.py health
 # Expects: {"status":"UP"} with DB sub-check, latency, pool stats, socks host:port
 ```
 
@@ -135,6 +139,6 @@ Wallets generated before 28 Jan 2026 carry DigiCert G1 roots, which stop working
 - **OCI Bastion:** free; sessions are ephemeral.
 
 ```bash
-python manage.py clean          # stop app, clear wallet/
-python manage.py tf destroy     # tear down all OCI resources
+.venv/bin/python manage.py clean          # stop app, clear wallet/
+.venv/bin/python manage.py tf destroy     # tear down all OCI resources
 ```
