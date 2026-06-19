@@ -1,0 +1,7 @@
+socks_port: 1080
+socks_auth_method: none # none | username
+socks_debug: 0 # 0 | 2  (2 logs negotiated method for the experiment)
+adb_fqdn: "" # ADB private endpoint FQDN (destination allowlist)
+client_cidr: "0.0.0.0/0" # restrict at proxy; NSG also restricts
+socks_username: socksuser
+socks_password: ""

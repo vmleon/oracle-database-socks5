@@ -1,0 +1,32 @@
+server:
+  port: 8080
+spring:
+  threads:
+    virtual:
+      enabled: true
+management:
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: db
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+app:
+  auth-mode: ${AUTH_MODE:mtls}
+  db:
+    tns-alias: ${TNS_ALIAS:dbpoc_high}
+    wallet-path: ${WALLET_PATH:}
+    tls-url: ${DB_TLS_URL:}
+    user: ${DB_USER}
+    password: ${DB_PASSWORD}
+  socks:
+    host: ${SOCKS_HOST}
+    port: ${SOCKS_PORT:1080}
+    mode: ${MODE:jumphost}
+    remote-dns: ${SOCKS_REMOTE_DNS:true}

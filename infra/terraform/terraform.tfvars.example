@@ -1,0 +1,6 @@
+region            = "eu-frankfurt-1"
+compartment_ocid  = "ocid1.compartment.oc1..xxxxx"
+client_cidr       = "203.0.113.10/32"
+ssh_public_key    = "ssh-rsa AAAA... user@host"
+db_admin_password = "Welcome_12345#"
+enable_bastion    = false

@@ -1,0 +1,17 @@
+# secrets / state / generated
+.env
+wallet/
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.pem
+*.key
+id_rsa*
+ansible/inventory.ini
+# build
+app/target/
+app/build/
+.gradle/
+__pycache__/
+.venv/
