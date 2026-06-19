@@ -12,9 +12,11 @@ resource "oci_database_autonomous_database_wallet" "this" {
 }
 
 resource "local_file" "wallet_zip" {
-  count          = var.auth_mode == "mtls" ? 1 : 0
-  content_base64 = oci_database_autonomous_database_wallet.this[0].content
-  filename       = "${path.module}/../../wallet/wallet.zip"
+  count                = var.auth_mode == "mtls" ? 1 : 0
+  content_base64       = oci_database_autonomous_database_wallet.this[0].content
+  filename             = "${path.module}/../../wallet/wallet.zip"
+  file_permission      = "0600"
+  directory_permission = "0700"
 }
 
 resource "terraform_data" "wallet_unzip" {
@@ -23,6 +25,6 @@ resource "terraform_data" "wallet_unzip" {
 
   provisioner "local-exec" {
     working_dir = "${path.module}/../.."
-    command     = "unzip -o wallet/wallet.zip -d wallet && chmod 600 wallet/*"
+    command     = "chmod 700 wallet && chmod 600 wallet/wallet.zip && unzip -o wallet/wallet.zip -d wallet && chmod 600 wallet/*"
   }
 }
