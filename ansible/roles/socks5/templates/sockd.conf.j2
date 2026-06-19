@@ -1,11 +1,16 @@
 logoutput: {{ '/var/log/sockd.log' if socks_debug|int > 0 else 'syslog' }}
-{% if socks_debug|int > 0 %}debug: {{ socks_debug }}{% endif %}
+{% if socks_debug|int > 0 %}
+debug: {{ socks_debug }}
+{% endif %}
 
 internal: 0.0.0.0 port = {{ socks_port }}
 external: {{ ansible_default_ipv4.interface }}
 
+# socksmethod drives SOCKS-layer auth (none = mode B; username = §6.1 experiment).
+# clientmethod is always none: clients are not authenticated at the connection
+# layer — the NSG source-IP allowlist controls who can reach the proxy.
 socksmethod: {{ socks_auth_method }}
-{% if socks_auth_method == 'none' %}clientmethod: none{% endif %}
+clientmethod: none
 user.privileged: root
 user.unprivileged: nobody
 
@@ -19,9 +24,9 @@ client pass {
 socks pass {
     from: {{ client_cidr }} to: {{ adb_fqdn }} port = 1522
     protocol: tcp
-    {% if socks_auth_method == 'username' %}socksmethod: username{% endif %}
     log: connect disconnect error
 }
+
 socks block {
     from: 0.0.0.0/0 to: 0.0.0.0/0
     log: connect error
