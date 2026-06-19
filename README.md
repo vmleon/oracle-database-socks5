@@ -64,36 +64,67 @@ Full step-by-step instructions are in **[DEPLOY.md](DEPLOY.md)**. The demo narra
 
 ### Command flow
 
+Run these one at a time. Each step builds on the previous one.
+
+Create the Python virtual environment. This is a one-time step that must run before any `manage.py` call.
+
 ```bash
-# 0. Create the virtual environment (one-time, before any manage.py call)
 python3 -m venv .venv
-.venv/bin/pip install typer python-dotenv pytest
-
-# 1. Check prerequisites and seed .env
-.venv/bin/python manage.py setup
-
-# 2. Provision infra (VCN + ADB-S + jump host)
-.venv/bin/python manage.py tf apply
-
-# 3. Install and harden danted on the jump host
-.venv/bin/python manage.py provision
-
-# 4. Download a fresh wallet into wallet/
-.venv/bin/python manage.py wallet fetch
-
-# 5. Build the Spring Boot jar
-.venv/bin/python manage.py build
-# Runs: ./gradlew bootJar   Output: app/build/libs/socks5poc-*.jar
-
-# 6. Start the app
-.venv/bin/python manage.py run
-
-# 7. Confirm DB connectivity through the proxy
-.venv/bin/python manage.py health
-# Expects: {"status":"UP"} with DB sub-check, latency, pool stats, socks host:port
 ```
 
-Copy `.env.example` to `.env` and fill in your OCID, region, client CIDR, and DB password before running `setup`.
+Install the orchestrator's dependencies into the virtual environment.
+
+```bash
+.venv/bin/pip install typer python-dotenv pytest
+```
+
+Copy the environment template, then edit `.env` to fill in your compartment OCID, region, client CIDR, and DB password.
+
+```bash
+cp .env.example .env
+```
+
+Check that the required tools are installed and seed any missing configuration.
+
+```bash
+.venv/bin/python manage.py setup
+```
+
+Provision the infrastructure: the VCN, the private ADB-S, and the public jump host.
+
+```bash
+.venv/bin/python manage.py tf apply
+```
+
+Install and harden the danted SOCKS5 daemon on the jump host.
+
+```bash
+.venv/bin/python manage.py provision
+```
+
+Download a fresh wallet into `wallet/`.
+
+```bash
+.venv/bin/python manage.py wallet fetch
+```
+
+Build the Spring Boot jar. This runs `./gradlew bootJar` and produces `app/build/libs/socks5poc-*.jar`.
+
+```bash
+.venv/bin/python manage.py build
+```
+
+Start the app.
+
+```bash
+.venv/bin/python manage.py run
+```
+
+Confirm DB connectivity through the proxy. A healthy response is `{"status":"UP"}` with the DB sub-check, latency, pool stats, and the socks host:port.
+
+```bash
+.venv/bin/python manage.py health
+```
 
 ---
 
@@ -132,7 +163,14 @@ Wallets generated before 28 Jan 2026 carry DigiCert G1 roots, which stop working
 - **Jump host:** smallest Flex or A1 shape. Stoppable when not in use.
 - **OCI Bastion:** free; sessions are ephemeral.
 
+Stop the app and clear the local `wallet/` contents.
+
 ```bash
-.venv/bin/python manage.py clean          # stop app, clear wallet/
-.venv/bin/python manage.py tf destroy     # tear down all OCI resources
+.venv/bin/python manage.py clean
+```
+
+Tear down all OCI resources.
+
+```bash
+.venv/bin/python manage.py tf destroy
 ```
