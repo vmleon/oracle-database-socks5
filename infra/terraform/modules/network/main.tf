@@ -59,11 +59,16 @@ resource "oci_core_network_security_group" "jumphost" {
   display_name   = "socks5-poc-jumphost-nsg"
 }
 
-# NSG for ADB private endpoint: ingress 1522 from jumphost NSG only
+# NSG for ADB private endpoint: ingress 1522 from jumphost NSG only.
+# depends_on orders destroy after the private subnet: the subnet blocks until the
+# ADB private-endpoint VNIC fully detaches, so by the time the NSG is deleted the
+# VNIC is gone (otherwise the NSG delete races the lingering VNIC and 412s).
 resource "oci_core_network_security_group" "adb" {
   compartment_id = var.compartment_ocid
   vcn_id         = oci_core_vcn.this.id
   display_name   = "socks5-poc-adb-nsg"
+
+  depends_on = [oci_core_subnet.private]
 }
 
 resource "oci_core_network_security_group_security_rule" "jh_ssh" {
