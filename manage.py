@@ -297,7 +297,7 @@ def setup():
     })
 
     console.print(f"\n[green]Wrote {ENV_FILE} and {TFVARS_FILE}[/green]")
-    console.print("\nNext step: [bold].venv/bin/python manage.py tf apply[/bold]")
+    console.print("\nNext step: [bold]python manage.py tf apply[/bold]")
 
 
 @app.command()
