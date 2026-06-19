@@ -352,6 +352,50 @@ def health():
 
 
 @app.command()
+def info():
+    """Show deployment details and copy-paste commands (SSH, SOCKS test)."""
+    from rich.console import Console
+    from rich.panel import Panel
+
+    console = Console()
+    cfg = load_config({})
+    tf = _read_tf_output()
+    jump_ip = tf.get("jumphost_public_ip", {}).get("value")
+    adb_fqdn = tf.get("adb_private_endpoint", {}).get("value")
+    db_name = tf.get("db_name", {}).get("value")
+
+    if not jump_ip:
+        console.print("[yellow]No Terraform outputs — run 'python manage.py tf apply' first.[/yellow]")
+        raise typer.Exit(1)
+
+    key = cfg.get("SSH_PRIVATE_KEY_PATH", "~/.ssh/id_rsa")
+    socks_port = cfg.get("SOCKS_PORT", "1080")
+
+    console.print(Panel(
+        f"Region:        {cfg.get('OCI_REGION', '?')}\n"
+        f"Auth mode:     {cfg.get('AUTH_MODE', 'mtls')}\n"
+        f"Database:      {db_name}  (TNS alias {cfg.get('TNS_ALIAS', '?')}, user {cfg.get('DB_USER', 'ADMIN')})\n"
+        f"ADB endpoint:  {adb_fqdn}:1522  (private, mTLS)\n"
+        f"Wallet:        {cfg.get('WALLET_PATH', './wallet')}\n"
+        f"Jump host IP:  {jump_ip}\n"
+        f"SOCKS proxy:   {jump_ip}:{socks_port}",
+        title="Deployment",
+    ))
+
+    console.print("\n[bold]SSH to the jump host[/bold]")
+    console.print(f"ssh -i {key} opc@{jump_ip}")
+
+    console.print("\n[bold]Tail the cloud-init / provisioning log[/bold]")
+    console.print(f"ssh -i {key} opc@{jump_ip} 'sudo tail -n 80 /var/log/socks5-bootstrap.log'")
+
+    console.print("\n[bold]Test the SOCKS relay (no Java)[/bold]")
+    console.print(f"curl -v --socks5-hostname {jump_ip}:{socks_port} telnet://{adb_fqdn}:1522")
+
+    console.print("\n[bold]Check the proxy is reachable[/bold]")
+    console.print("python manage.py socks status")
+
+
+@app.command()
 def clean(destroy: bool = False):
     for p in Path("wallet").glob("*"):
         p.unlink()

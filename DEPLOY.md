@@ -87,6 +87,12 @@ python manage.py tf apply
 
 ## 5. Verify connectivity
 
+Print the deployment details plus ready-to-paste commands (SSH to the jump host with your key, the SOCKS relay test, the provisioning-log tail):
+
+```bash
+python manage.py info
+```
+
 Check that the jump host is reachable on port 1080. Until cloud-init finishes provisioning `sockd`, this shows `DOWN`; give it a minute or two after `tf apply`, then expect `<IP>:1080 reachable`.
 
 ```bash
