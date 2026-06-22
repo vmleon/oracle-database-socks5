@@ -98,6 +98,31 @@ The PoC ships only `oraclepki` because it is on the 23ai line. A deployment buil
 
 ---
 
+## Connect-data form — SID vs SERVICE_NAME
+
+The connect descriptor identifies the target database either by **SID** (`(CONNECT_DATA=(SID=...))`) or by **SERVICE_NAME** (`(CONNECT_DATA=(SERVICE_NAME=...))`). This choice is **invisible to SOCKS**: the proxy relays a raw TCP stream to a `host:port`, and the `CONNECT_DATA` rides inside the SQL\*Net payload, which the proxy never inspects. Both forms tunnel identically — the only difference is in the client's connect string. The relay, NSG egress, and remote-DNS settings are untouched.
+
+The PoC targets ADB, which is **SERVICE_NAME-only**: its `tnsnames` aliases all carry `SERVICE_NAME`, and an Autonomous Database has no SID. The SID examples below are therefore **illustrative** — the form a client uses against an older on-prem listener (e.g. a 21c instance identified by SID) — validated against such a listener, not against the PoC's ADB.
+
+One syntactic constraint: SID has no easy-connect form. `@host:port/service` is SERVICE_NAME-only; a SID needs the long descriptor (or the legacy `@host:port:SID` thin URL).
+
+**SQLcl.** The `SET socksproxy` line is identical; only the connect target changes from the wallet TNS alias to a SID descriptor:
+
+```sql
+SET socksproxy socks5h://JUMPHOST_IP:1080
+CONNECT user/password@(DESCRIPTION=(ADDRESS=(PROTOCOL=tcp)(HOST=db.corp.example.com)(PORT=1521))(CONNECT_DATA=(SID=ORCL)))
+```
+
+`socks5h` keeps DNS resolution on the proxy side — the SQLcl equivalent of `oracle.net.socksRemoteDNS=true`.
+
+**Spring Boot.** The three `oracle.net.socks*` properties on the data source are unchanged. The URL swaps the wallet TNS alias for a direct SID descriptor; with plain TCP user/password there is no wallet and no `WALLET_PATH`:
+
+```
+spring.datasource.url=jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS=(PROTOCOL=tcp)(HOST=db.corp.example.com)(PORT=1521))(CONNECT_DATA=(SID=ORCL)))
+```
+
+---
+
 ## Topology: cloud (ADB) vs on-prem
 
 This is where environments genuinely diverge, and where most of the porting effort lives.
