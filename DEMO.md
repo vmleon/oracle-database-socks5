@@ -68,41 +68,37 @@ Expected: the Oracle Database version banner is returned. If this fails after st
 
 ## Step 3 — App happy path
 
+`python manage.py run` launches the prebuilt Spring Boot jar; build it first with `python manage.py build` (this produces `app/build/libs/socks5poc-*.jar`).
+
 Start the app (reads `SOCKS_HOST`, `SOCKS_PORT`, `SOCKS_REMOTE_DNS`, `TNS_ALIAS`, `WALLET_PATH`, `DB_USER`, `DB_PASSWORD` from `.env` / environment):
 
 ```bash
+python manage.py build
 python manage.py run
 ```
 
-In a second terminal, probe the health endpoint:
+In a second terminal, probe the health endpoint, narrowing to the database component:
 
 ```bash
-python manage.py health
+python manage.py health | jq .components.db
 ```
 
-Expected response (`status` == `UP`, exit 0):
+Expected `db` component (`status` == `UP`):
 
 ```json
 {
   "status": "UP",
-  "components": {
-    "db": {
-      "status": "UP",
-      "details": {
-        "latencyMs": 42,
-        "borrowed": 1,
-        "available": 9,
-        "socks": "JUMPHOST_IP:1080",
-        "mode": "jumphost"
-      }
-    },
-    "readiness": { "status": "UP" },
-    "liveness": { "status": "UP" }
+  "details": {
+    "latencyMs": 42,
+    "borrowed": 1,
+    "available": 9,
+    "socks": "JUMPHOST_IP:1080",
+    "mode": "jumphost"
   }
 }
 ```
 
-Values for `latencyMs`, `borrowed`, and `available` vary; `socks` and `mode` reflect the running configuration.
+Values for `latencyMs`, `borrowed`, and `available` vary; `socks` and `mode` reflect the running configuration. Drop the `| jq` filter to see the full envelope, including the `readiness` and `liveness` components.
 
 ---
 
