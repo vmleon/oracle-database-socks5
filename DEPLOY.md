@@ -135,7 +135,17 @@ python manage.py health
 
 ---
 
-## 7. Optional: Bastion demo path
+## 7. Teardown
+
+Remove `wallet/` contents and run `terraform destroy` to tear down all OCI resources.
+
+```bash
+python manage.py clean --destroy
+```
+
+---
+
+## 8. Optional: Bastion demo path
 
 If you chose to create the Bastion during `setup` (so `enable_bastion = true` in `terraform.tfvars`), you can route JDBC through OCI Bastion instead of the jump host. The Bastion path is ephemeral (3-hour hard session TTL) and is intended for demo/ad-hoc access only.
 
@@ -156,16 +166,6 @@ SOCKS_PORT=1080
 ```
 
 Then run `python manage.py run` and `python manage.py health` as usual. The JDBC behavior is identical; only `SOCKS_HOST` changes.
-
----
-
-## 8. Teardown
-
-Remove `wallet/` contents and run `terraform destroy` to tear down all OCI resources.
-
-```bash
-python manage.py clean --destroy
-```
 
 ---
 
