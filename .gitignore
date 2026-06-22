@@ -19,3 +19,6 @@ __pycache__/
 
 # terraform-generated artifacts
 infra/terraform/generated/
+
+# superpowers plans/specs (local only)
+docs/superpowers/
