@@ -32,6 +32,12 @@ Expected: `curl` attempts to resolve `<adb-private-fqdn>` on the client machine 
 
 Requires SQLcl 24.x+. Useful as a quick wallet validation before starting the app. Run these inside the SQLcl session, one at a time.
 
+Open SQLcl without connecting.
+
+```bash
+sql /nolog
+```
+
 Point SQLcl at the SOCKS proxy.
 
 ```sql
@@ -53,10 +59,10 @@ CONNECT DB_USER/DB_PASSWORD@dbpoc_high
 Run a probe query.
 
 ```sql
-SELECT 1 FROM DUAL;
+SELECT banner_full FROM V$VERSION;
 ```
 
-Expected: `1` returned. If this fails after step 1 succeeded, check the wallet path and TNS alias.
+Expected: the Oracle Database version banner is returned. If this fails after step 1 succeeded, check the wallet path and TNS alias.
 
 ---
 
@@ -308,7 +314,7 @@ Expected: identical `UP` response with `"mode": "bastion"` and `"socks": "127.0.
 | --------------------- | -------------------------------------------------------------- | ------------------------------- |
 | 1a SOCKS (remote DNS) | `curl --socks5-hostname JUMPHOST_IP:1080 telnet://<fqdn>:1522` | TCP connected                   |
 | 1b SOCKS (local DNS)  | `curl --socks5 JUMPHOST_IP:1080 telnet://<fqdn>:1522`          | Host resolution failure         |
-| 2 SQLcl               | `CONNECT user/pwd@dbpoc_high`                                  | `1` returned                    |
+| 2 SQLcl               | `CONNECT user/pwd@dbpoc_high`                                  | version banner returned         |
 | 3 Happy path          | `manage.py run` + `manage.py health`                           | `UP` with details               |
 | 4 Negative test       | `SOCKS_REMOTE_DNS=false manage.py run` + health                | `DOWN`                          |
 | 5a–d Auth experiment  | SSH in, re-run role (`socks_auth_method=username`) + tcpdump   | `05 01 00` / rejection / `DOWN` |
