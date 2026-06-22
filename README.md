@@ -66,7 +66,7 @@ Deployment is fully scripted by `manage.py`. The end-to-end flow is: configure (
 
 `tf apply` does all the OCI work in one step: it creates the network, ADB, and jump host; publishes the Ansible `socks5` role to Object Storage; and the jump host **self-provisions via cloud-init** (downloads the role through a pre-authenticated URL and runs it locally — no SSH push). In `mtls` mode it also generates the ADB wallet straight into `./wallet` on the client. The jump host never receives the wallet.
 
-See **[DEPLOY.md](DEPLOY.md)** for the full, copy-pasteable steps, and **[DEMO.md](DEMO.md)** for the validation walkthrough.
+See **[DEPLOY.md](DEPLOY.md)** for the full, copy-pasteable steps, and **[DEMO.md](DEMO.md)** for the validation walkthrough. For adapting this PoC to other JDBC drivers, database versions, or on-prem / RAC topologies — including concrete `sockd.conf` and CMAN configs — see **[docs/scenarios.md](docs/scenarios.md)**.
 
 ---
 

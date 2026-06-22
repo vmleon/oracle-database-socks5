@@ -135,6 +135,101 @@ The PoC as written would connect to the SCAN, then hang on the redirect.
 
 Option B is the on-prem analogue of what OCI already does for ADB, which is why it is the natural fit.
 
+### Concrete configurations
+
+**`sockd.conf` — on-prem single listener.** The PoC's relay template with the destination changed from the ADB FQDN on 1522 to an on-prem listener on 1521 (use 2484 for TCPS). Egress is pinned to the one listener endpoint, ingress to the client CIDR:
+
+```
+logoutput: /var/log/sockd.log
+internal: 0.0.0.0 port = 1080
+external: eth0
+
+socksmethod: none
+clientmethod: none
+user.privileged: root
+user.unprivileged: nobody
+
+client pass {
+    from: 203.0.113.0/24 to: 0.0.0.0/0
+    log: connect disconnect error
+}
+
+socks pass {
+    from: 203.0.113.0/24 to: db.corp.example.com port = 1521
+    protocol: tcp
+    log: connect disconnect error
+}
+
+socks block {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    log: connect error
+}
+```
+
+**`sockd.conf` — RAC, Option A (widen reachability).** The relay must allow the SCAN name _and every node VIP_ on the listener port, because the client follows the SCAN redirect to a VIP. Add one `socks pass` rule per node:
+
+```
+client pass {
+    from: 203.0.113.0/24 to: 0.0.0.0/0
+    log: connect disconnect error
+}
+
+# SCAN entry point
+socks pass {
+    from: 203.0.113.0/24 to: rac-scan.corp.example.com port = 1521
+    protocol: tcp
+    log: connect disconnect error
+}
+
+# One rule per node VIP the SCAN may redirect to
+socks pass {
+    from: 203.0.113.0/24 to: rac01-vip.corp.example.com port = 1521
+    protocol: tcp
+}
+socks pass {
+    from: 203.0.113.0/24 to: rac02-vip.corp.example.com port = 1521
+    protocol: tcp
+}
+
+socks block {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    log: connect error
+}
+```
+
+With `oracle.net.socksRemoteDNS=true`, the VIP hostnames resolve on the proxy host, so the proxy must also resolve and route to them. Every node added to the cluster needs another rule — the maintenance cost the table above flags.
+
+**CMAN — Option B (recommended).** Run Oracle Connection Manager (its traffic-director mode, CMAN-TDM, is the variant tightly integrated with SCAN) on a host inside the database network. `cman.ora`:
+
+```
+cman_proxy =
+  (configuration =
+    (address = (protocol = tcp)(host = cman.corp.example.com)(port = 1521))
+    (rule_list =
+      (rule =
+        (source = 203.0.113.0/24)(destination = rac-scan.corp.example.com)(srv = SALESPDB)
+        (action = accept))
+      (rule =
+        (source = *)(destination = *)(srv = *)(action = reject)))
+    (parameter_list =
+      (idle_timeout = 0)
+      (inbound_connect_timeout = 60)
+      (max_connections = 1024)
+      (log_level = user)))
+```
+
+Start it with `cmctl -c cman_proxy startup`. CMAN sits in the database network, so it follows the SCAN redirect to the node VIPs itself; the client only ever talks to CMAN. The client reaches the cluster through a `SOURCE_ROUTE` descriptor — CMAN first, then the SCAN target behind it:
+
+```
+jdbc:oracle:thin:@(DESCRIPTION =
+  (SOURCE_ROUTE = yes)
+  (ADDRESS = (PROTOCOL = tcp)(HOST = cman.corp.example.com)(PORT = 1521))
+  (ADDRESS = (PROTOCOL = tcp)(HOST = rac-scan.corp.example.com)(PORT = 1521))
+  (CONNECT_DATA = (SERVICE_NAME = SALESPDB)))
+```
+
+The relay then needs egress only to the single CMAN endpoint — use the single-listener `sockd.conf` above with the destination set to `cman.corp.example.com port = 1521`. No per-VIP rules, and no relay change when the cluster grows.
+
 ---
 
 ## Proxy / auth variations
