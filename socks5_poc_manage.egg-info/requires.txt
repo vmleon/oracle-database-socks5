@@ -1,8 +1,0 @@
-typer>=0.12
-python-dotenv>=1.0
-oci>=2.120
-InquirerPy>=0.3
-rich>=13.0
-
-[dev]
-pytest>=8.0

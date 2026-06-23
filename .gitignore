@@ -22,3 +22,4 @@ infra/terraform/generated/
 
 # superpowers plans/specs (local only)
 docs/superpowers/
+*.egg-info/
