@@ -130,7 +130,7 @@ python manage.py run
 Confirm connectivity. This calls `GET localhost:8080/actuator/health` and exits non-zero if the status is not `UP`. A successful response includes the database sub-check, which confirms an end-to-end query executed through the SOCKS5 proxy.
 
 ```bash
-python manage.py health
+python manage.py health | jq .
 ```
 
 ---

@@ -268,6 +268,11 @@ The PoC's relay requires no SOCKS-layer authentication; security comes from a so
 
 **A local relay instead of a remote daemon.** The OCI Bastion mode replaces the always-on `sockd` with an ephemeral dynamic port-forwarding session on `127.0.0.1`. Only `SOCKS_HOST`/`SOCKS_PORT` change; the driver behavior is identical. Bastion sessions have a hard 3-hour TTL, so they suit demos and ad-hoc access rather than always-on use.
 
+**What a SOCKS username cannot do.** SOCKS5 operates at the TCP layer: it relays a raw byte stream to one `host:port` and never parses the SQL\*Net payload riding inside. So even where SOCKS-layer auth is available, a SOCKS username only gates _whether_ the relay forwards the stream — it cannot:
+
+- **Route to a different upstream by credential.** The destination comes from the client's SOCKS request (RFC 1928), not from the username; RFC 1929 covers only verifying the credential. Per-user upstream selection is not a SOCKS5 protocol feature — only a few servers (e.g. 3proxy, via stacked `allow`/`parent` rules) add it through their own config.
+- **Select an Oracle schema/user.** The database username is negotiated inside SQL\*Net, which the proxy never sees. One SOCKS username cannot map to different Oracle users on the same `host:port`; database identity is always settled end-to-end between the driver and the listener.
+
 ---
 
 ## Decision matrix — what to change for a given target

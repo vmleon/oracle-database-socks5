@@ -10,6 +10,9 @@ wallet/
 *.key
 id_rsa*
 ansible/inventory.ini
+# tool artifacts
+.playwright-mcp/
+
 # build
 app/target/
 app/build/
